@@ -33,40 +33,54 @@ jobs:
         run: uv sync --all-groups
 
       - name: Build Chinese docs
-        run: |
-          mkdir -p deploy-site
-          uv run python scripts/build_zh.py
-          cp -r build/zh deploy-site/zh
-          cp -r build/images deploy-site/images
-          cp -r build/fonts deploy-site/fonts
-          cp build/docs.json deploy-site/ 2>/dev/null || true
+        run: uv run python scripts/build_zh.py
 
-      - name: Start Mintlify server and capture
+      - name: Install Mintlify CLI and wget
+        run: |
+          npm install -g mint@4.2.406
+          sudo apt-get update -qq && sudo apt-get install -y -qq wget
+
+      - name: Start Mintlify server and capture static site
         timeout-minutes: 20
         run: |
           cd build
-          mint dev --port 3456 &
+          NPX_MINT=$(which mint || echo "")
+          if [ -z "$NPX_MINT" ]; then
+            MINT_CMD="npx -y mint"
+          else
+            MINT_CMD="mint"
+          fi
+          echo "Using: $MINT_CMD"
+          $MINT_CMD dev --port 3456 > /tmp/mint-dev.log 2>&1 &
           MINT_PID=$!
-          echo "Server PID: $MINT_PID, waiting up to 120s..."
-          for i in $(seq 1 120); do
+          echo "Server PID: $MINT_PID"
+          echo "Waiting for server on port 3456..."
+          for i in $(seq 1 180); do
             CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3456/ 2>/dev/null)
             if [ "$CODE" != "000" ]; then
-              echo "Server responded with $CODE after ${i}s"
+              echo "Server responded with HTTP $CODE after ${i}s"
               break
+            fi
+            if [ $((i % 10)) -eq 0 ]; then
+              echo "...still waiting (${i}s)..."
             fi
             sleep 1
           done
-          cd ..
+          mkdir -p ../deploy-site
+          echo "Starting wget capture..."
           wget --recursive --page-requisites --adjust-extension --convert-links \
                --no-parent --timeout=30 --tries=3 \
-               --directory-prefix=deploy-site \
-               http://localhost:3456/ 2>&1 || true
+               --directory-prefix=../deploy-site \
+               http://localhost:3456/ 2>&1
+          echo "wget exit code: $?"
           kill $MINT_PID 2>/dev/null || true
-          mv deploy-site/localhost:3456/* deploy-site/ 2>/dev/null || true
-          rm -rf deploy-site/localhost:3456 2>/dev/null || true
+          if [ -d "../deploy-site/localhost:3456" ]; then
+            mv ../deploy-site/localhost:3456/* ../deploy-site/ 2>/dev/null || true
+            rm -rf ../deploy-site/localhost:3456
+          fi
           echo "=== Downloaded files ==="
-          find deploy-site -type f | wc -l
-          ls deploy-site/ | head -10
+          find ../deploy-site -type f | wc -l
+          ls -la ../deploy-site/ | head -10
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
