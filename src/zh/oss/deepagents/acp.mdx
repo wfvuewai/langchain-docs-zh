@@ -1,0 +1,285 @@
+---
+title: 代理通信协议（ACP）
+description: ACP 提供了一个标准的 HTTP 或 WebSocket 接口来调用远程代理，将其作为工具暴露给 Deep Agents。
+---
+
+## 概述
+
+**代理通信协议（ACP）** 是一个开放协议，允许代理通过标准化的 HTTP(S) 或 WebSocket 端点交换消息和控制数据。在使用 Deep Agents 时，ACP 客户端将远程代理作为工具暴露给调用者——子代理、异步子代理或普通工具。
+
+在内置子代理的基础上，你可以使用 ACP 与运行在任何框架（LangChain、CrewAI、AutoGen、Smolagents 等）或语言（Python、TypeScript、Go 等）上的远程代理进行通信。
+
+ACP 定义了服务器端点的统一接口：
+
+- `POST /info`——返回服务器元数据（描述、可用签名）。
+- `POST /invoke`——以请求-响应方式向远程代理发送消息。
+- `POST /stream`——向远程代理发送消息，并通过 [SSE](https://en.wikipedia.org/wiki/Server-sent_events) 接收流式响应。
+
+标准化的心跳和错误信号使端点保持一致，无论底层代理实现是什么。
+
+```mermaid
+graph LR
+    subgraph 调用方
+        A[主代理]
+    end
+    subgraph ACP
+        HTTP[HTTP(s) / WebSocket]
+    end
+    subgraph 远程
+        B[远程代理]
+    end
+
+    A -->|"ACP 客户端"| HTTP
+    HTTP -->|"/invoke 或 /stream"| B
+    B -->|"结果"| HTTP
+    HTTP -->|"响应"| A
+
+    classDef process fill:#E5F4FF,stroke:#006DDD,stroke-width:2px,color:#030710
+    classDef output fill:#EBD0F0,stroke:#885270,stroke-width:2px,color:#441E33
+    classDef neutral fill:#F2FAFF,stroke:#40668D,stroke-width:2px,color:#2F4B68
+
+    class A,B process
+    class HTTP neutral
+```
+
+## 安装
+
+ACP 库与 `deepagents` 一起作为可选依赖提供。
+
+```bash
+pip install "deepagents[acp]"
+```
+
+或
+
+```bash
+uv add "deepagents[acp]"
+```
+
+## ACP 服务器
+
+ACP 服务器在一个标准端点上暴露一个聊天代理：`POST /acp`。任何实现相同接口的客户端都可以与它通信，无论框架如何。
+
+```python
+from deepagents_acp import ACPServer
+from langchain.tools import tool
+
+
+@tool
+def get_weather(location: str) -> str:
+    """获取某地的天气。"""
+    return f"{location} 的天气是晴天。"
+
+
+acp_server = ACPServer(
+    tools=[get_weather],
+    model="openai:gpt-5.4",
+    system_prompt="你是一个天气助手。",
+    description="提供天气信息的天气助手。",
+)
+```
+
+### 服务器选项
+
+| 参数 | 类型 | 默认值 | 描述 |
+| --- | --- | --- | --- |
+| `tools` | `list` | `[]` | 供服务器代理使用的工具。 |
+| `model` | `str` | 必填 | 服务器代理的聊天模型。 |
+| `system_prompt` | `str` | `""` | 服务器代理的系统提示。 |
+| `description` | `str` | `""` | ACP 服务器的描述。 |
+| `middleware` | `list` | `[]` | 服务器代理的额外中间件。 |
+| `auth_token` | `str` | `None` | 用于保护端点的可选 Bearer 令牌。 |
+
+### 使用 ASGI 框架运行
+
+ACP 服务器与 ASGI 框架兼容，如 FastAPI、Starlette 或 Quart。
+
+#### FastAPI
+
+```python
+from fastapi import FastAPI
+from deepagents_acp import ACPServer
+
+acp_server = ACPServer(...)
+
+app = FastAPI()
+app.add_route("/acp", acp_server, methods=["POST"])
+app.add_websocket_route("/acp", acp_server)
+```
+
+#### Starlette
+
+```python
+from starlette.applications import Starlette
+from starlette.routing import Route, WebSocketRoute
+from deepagents_acp import ACPServer
+
+acp_server = ACPServer(...)
+
+routes = [
+    Route("/acp", endpoint=acp_server, methods=["POST"]),
+    WebSocketRoute("/acp", endpoint=acp_server),
+]
+
+app = Starlette(routes=routes)
+```
+
+### 服务器认证
+
+通过传递 `auth_token` 来保护 ACP 服务器。客户端必须在请求中包含 `Authorization: Bearer <token>` 头部。
+
+```python
+acp_server = ACPServer(
+    ...,
+    auth_token="your-secret-token",
+)
+```
+
+## ACP 客户端
+
+ACP 客户端通过 ACP 协议连接到远程代理服务器。它们可以作为同步或异步子代理添加。
+
+### 同步客户端
+
+```python
+from deepagents import create_deep_agent
+from deepagents_acp import ACPClient
+
+acp_client = ACPClient(
+    url="http://localhost:8001",
+    timeout=60,
+)
+
+agent = create_deep_agent(
+    model="openai:gpt-5.4",
+    subagents=[acp_client],
+)
+```
+
+### 异步客户端
+
+要异步运行多个 ACP 客户端，使用 `ACPAsyncClient` 作为异步子代理：
+
+```python
+from deepagents import create_deep_agent
+from deepagents_acp import ACPAsyncClient
+
+acp_client = ACPAsyncClient(
+    url="http://localhost:8001",
+    interrupt_before=["research_task"],
+)
+acp_client_2 = ACPAsyncClient(
+    url="http://localhost:8002",
+    interrupt_before=["fact_check"],
+)
+
+agent = create_deep_agent(
+    model="openai:gpt-5.4",
+    async_subagents=[acp_client, acp_client_2],
+)
+```
+
+### 客户端选项
+
+| 参数 | 类型 | 默认值 | 描述 |
+| --- | --- | --- | --- |
+| `url` | `str` | 必填 | ACP 服务器的 URL。 |
+| `description` | `str` | 来自服务器 `/info` | 客户端代理的描述。 |
+| `name` | `str` | 来自服务器 `/info` | 客户端代理的名称。 |
+| `timeout` | `int` | `60` | 请求超时（秒）。 |
+| `auth_token` | `str` | `None` | 用于认证的可选 Bearer 令牌。 |
+| `interrupt_before` | `list[str]` | `[]` | 对于异步客户端：在哪些工具前中断。 |
+| `interrupt_on` | `list[str]` | `[]` | 对于异步客户端：在哪些工具时中断。 |
+
+## 协议规范
+
+ACP 端点遵循 OpenAPI 规范，该规范可在 `deepagents_acp.openapi_spec` 处获得。ACP 服务器和客户端都派生自它。
+端点规范也可作为 @[`AgentInfo`] 使用。
+
+### 端点
+
+#### `POST /info`
+
+返回服务器元数据。未认证。
+
+**响应：**
+
+```json
+{
+    "name": "weather-assistant",
+    "description": "提供天气信息的天气助手。",
+    "input_schema": {},
+    "tools": [
+        {
+            "name": "get_weather",
+            "description": "获取某地的天气。",
+            "parameters": {
+                "location": {"type": "string"}
+            }
+        }
+    ]
+}
+```
+
+#### `POST /invoke`
+
+向服务器代理发送消息并接收响应。
+
+**请求：**
+
+```json
+{
+    "messages": [
+        {"role": "user", "content": "上海的天气怎么样？"}
+    ]
+}
+```
+
+**响应：**
+
+```json
+{
+    "messages": [
+        {"role": "assistant", "content": "上海的天气是晴天，温度 25°C。"}
+    ]
+}
+```
+
+#### `POST /stream`
+
+向服务器代理发送消息并通过 SSE 接收流式响应。
+
+**请求：**
+
+```json
+{
+    "messages": [
+        {"role": "user", "content": "上海的天气怎么样？"}
+    ]
+}
+```
+
+**SSE 事件：**
+
+```
+event: metadata
+data: {"name": "weather-assistant"}
+
+event: messages
+data: [{"role": "assistant", "content": "上海的"}]
+
+event: messages
+data: [{"role": "assistant", "content": "天气是晴天。"}]
+```
+
+## 与 A2A 的关系
+
+ACP 的一个常见模式是将其嵌入在 [A2A](/oss/deepagents/a2a) 服务器内部——将 ACP 视为底层通信传输，将 A2A 视为代理编排层。参见 [`AcpAgentAdapter`](https://github.com/langchain-ai/deepagents/blob/main/libs/deepagents/deepagents/a2a/_agent_adapter.py) 以了解将其集成到 A2A 服务器中的参考实现。
+
+| | **ACP** | **A2A** |
+| --- | --- | --- |
+| **范围** | 单个工具式代理调用 | 多代理工作流编排 |
+| **通信** | 直接 HTTP/WS | 通过代理卡进行代理发现 |
+| **用例** | 主代理与专业远程代理通信 | 编排多个独立代理的工作流 |
+| **标准状态** | 公开，LangChain 维护 | 公开，Google 发起 |
+| **关系** | ACP 客户端暴露子代理；ACP 服务器接收子代理请求 | A2A 中的对等代理互相发现和通信 |

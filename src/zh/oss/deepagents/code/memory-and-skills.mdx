@@ -1,0 +1,211 @@
+---
+title: 记忆与技能
+sidebarTitle: 记忆与技能
+description: Deep Agents Code 的持久记忆、AGENTS.md 文件和可重用技能，包括创建、发现和调用。
+---
+
+自定义任何智能体有两种主要方式：
+
+- **[记忆](#memory)**：`AGENTS.md` 文件和自动保存的跨会话持久记忆。使用记忆来保存通用编码风格、偏好和学到的约定。
+
+- **[技能](#skills)**：全局和项目特定的上下文、约定、指南或指令。在执行特定任务时使用技能来应用上下文。
+
+使用 `/remember` 显式提示智能体从当前对话更新其记忆和技能。
+
+<Tip>
+    正在使用 SDK 构建自定义智能体？参见[记忆](/zh/oss/deepagents/memory)了解编程记忆后端。
+</Tip>
+
+## 记忆
+
+### 自动记忆
+
+当你使用智能体时，它会使用记忆优先协议自动将信息存储到 `~/.deepagents/<agent_name>/memories/` 中的 markdown 文件中：
+
+1. **研究**：在开始任务前搜索记忆中的相关上下文
+2. **响应**：在执行过程中不确定时检查记忆
+3. **学习**：自动保存新信息以供未来的会话使用
+
+智能体按主题组织其记忆，并使用描述性文件名：
+
+```
+~/.deepagents/backend-dev/memories/
+├── api-conventions.md
+├── database-schema.md
+└── deployment-process.md
+```
+
+当你教给智能体约定时：
+
+```bash
+dcode --agent backend-dev
+> 我们的 API 使用 snake_case 并包含 created_at/updated_at 时间戳
+```
+
+它会在未来的会话中记住：
+
+```bash
+> 创建一个 /users 端点
+# 无需提示即可应用约定
+```
+
+### AGENTS.md 文件
+
+[`AGENTS.md` 文件](https://agents.md/)提供在会话启动时始终加载的持久上下文：
+
+- **全局**：`~/.deepagents/<agent_name>/AGENTS.md` —— 每次会话加载。
+- **项目**：任何 git 项目根目录中的 `.deepagents/AGENTS.md` —— 当 Deep Agents Code 从该项目内运行时加载。
+
+两个文件都会在启动时追加到系统提示中。
+
+### 记忆如何工作
+
+智能体也可能在回答项目特定问题或当你引用过去的工作或模式时读取其记忆文件。
+
+当你提供关于它应该如何表现的信息、对其工作的反馈或指示它记住某事时，智能体将更新 `AGENTS.md`。如果它从你的交互中识别出模式或偏好，它也会更新其记忆。
+
+要在额外的记忆文件中添加更多结构化的项目知识，请将其添加到 `.deepagents/` 中并在 `AGENTS.md` 文件中引用它们。你必须在 `AGENTS.md` 文件中引用额外的文件，智能体才能感知到它们。额外的文件不会在启动时读取，但智能体可以在需要时引用和更新它们。
+
+### 何时使用全局与项目 AGENTS.md
+
+使用全局 `AGENTS.md`（`~/.deepagents/agent/AGENTS.md`）用于：
+
+- 你的个性、风格和通用的编码偏好
+- 总体语气和沟通风格
+- 通用编码偏好（格式化、类型提示等）
+- 适用于所有场景的工具使用模式
+- 不随项目变化的工作流程和方法
+
+使用项目 `AGENTS.md`（项目根目录中的 `.deepagents/AGENTS.md`）用于：
+
+- 项目特定的上下文和约定
+- 项目架构和设计模式
+- 此代码库特有的编码约定
+- 测试策略和部署流程
+- 团队指南和项目结构
+
+## 技能
+
+技能是可重用的智能体能力，提供专门的工作流程和领域知识。你可以使用[技能](/zh/oss/deepagents/skills)为你的深度智能体提供新的能力和专业知识。深度智能体技能遵循 [Agent Skills 标准](https://agentskills.io/)。一旦你添加了技能，你的深度智能体将自动使用它们，并在你使用智能体并提供额外信息时更新它们。
+
+### 添加技能
+
+<Steps>
+    <Step title="创建技能">
+
+        ```bash
+        # 用户技能（存储在 ~/.deepagents/<agent_name>/skills/）
+        dcode skills create test-skill
+
+        # 项目技能（存储在 .deepagents/skills/）
+        dcode skills create test-skill --project
+        ```
+
+        这会生成：
+
+        ```plaintext
+        skills/
+        └── test-skill
+            └── SKILL.md
+        ```
+
+    </Step>
+    <Step title="编辑 SKILL.md">
+        打开生成的 `SKILL.md` 并编辑文件以包含你的指令。
+    </Step>
+    <Step title="添加可选资源">
+        可选地将其他脚本或其他资源添加到 `test-skill` 文件夹中。有关更多信息，请参见[示例](/zh/oss/deepagents/skills#example)。
+    </Step>
+</Steps>
+
+你也可以将现有技能直接复制到智能体的文件夹中：
+
+```bash
+mkdir -p ~/.deepagents/<agent_name>/skills
+cp -r examples/skills/web-research ~/.deepagents/<agent_name>/skills/
+```
+
+### 安装社区技能
+
+你可以使用 Vercel 的 [Skills CLI](https://github.com/vercel-labs/skills) 等工具在你的环境中安装社区 [Agent Skills](https://agentskills.io/)，并使其对你的深度智能体可用：
+
+```bash
+# 全局安装技能
+npx skills add vercel-labs/agent-skills --skill web-design-guidelines -a deepagents -g -y
+
+# 列出已安装的技能
+npx skills ls -a deepagents -g
+```
+
+全局安装（`-g`）将技能符号链接到 `~/.deepagents/agent/skills/`——默认智能体的用户级别技能目录。项目级别安装（省略 `-g`）将技能放置在相对于当前目录的 `.deepagents/skills/` 中，使其可用于在该项目中运行的任何智能体，无论智能体名称如何。
+
+<Note>
+    全局安装仅针对默认的 `agent` 目录。如果你使用自定义名称的智能体，请使用项目级别安装或手动将技能符号链接到 `~/.deepagents/{your-agent}/skills/`。
+</Note>
+
+### 技能发现
+
+启动时，Deep Agents Code 从 Deep Agents 和共享别名目录中发现技能：
+
+```text
+~/.deepagents/<agent_name>/skills/
+~/.agents/skills/
+.deepagents/skills/
+.agents/skills/
+~/.claude/skills/          （实验性）
+.claude/skills/            （实验性）
+```
+
+当存在重复的技能名称时，后优先级的目录会覆盖先前的目录（参见[应用数据](/zh/oss/deepagents/code/data-locations#skills)）。
+
+对于项目特定的技能，项目的根文件夹必须有一个 `.git` 文件夹。当你从项目文件夹内的任何位置启动 Deep Agents Code 时，它会通过查找包含的 `.git` 文件夹来找到项目的根文件夹。
+
+对于每个技能，Deep Agents Code 从 `SKILL.md` 文件的前置元数据中读取名称和描述。当你使用 Deep Agents Code 时，如果任务匹配技能的描述，智能体将读取技能文件并遵循其指令。
+
+你也可以使用 `/skill:<name> [args]` 直接调用技能。技能发现会在启动时运行，并在 `/reload` 时再次运行。
+
+### 从命令行调用技能
+
+使用 `--skill` 在启动时调用技能，而无需交互式输入斜杠命令：
+
+```bash
+# 打开 TUI 并立即运行技能
+dcode --skill code-review
+
+# 使用 -m 向技能传递请求
+dcode --skill code-review -m '审查认证模块'
+
+# 将内容管道传递到技能
+cat diff.txt | dcode --skill code-review
+
+# 管道传递内容并添加请求
+cat diff.txt | dcode --skill code-review -m '关注安全性'
+```
+
+`--skill` 也适用于非交互模式：
+
+```bash
+# 无头运行技能
+dcode --skill code-review -n '审查此补丁'
+
+# 安静模式（仅智能体输出到 stdout）
+dcode --skill code-review -n '审查此补丁' -q
+```
+
+<Note>
+    `--skill` 与 `--quiet` 或 `--no-stream` 一起使用时需要 `-n`（非交互模式）。
+</Note>
+
+### 列出技能
+
+```bash
+# 列出所有用户技能
+dcode skills list
+
+# 列出项目技能
+dcode skills list --project
+
+# 获取特定技能的详细信息
+dcode skills info test-skill
+dcode skills info test-skill --project
+```

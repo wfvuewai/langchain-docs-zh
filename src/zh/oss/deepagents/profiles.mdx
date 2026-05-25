@@ -1,0 +1,217 @@
+---
+title: 配置档案
+description: 打包 Deep Agents 在选择模型时应用的按提供商和按模型的默认配置。
+---
+
+**Harness 配置档案**让你可以打包配置，当 Deep Agents 选择特定提供商或具体模型时应用：系统提示调整、工具描述覆盖、排除的工具或中间件、额外的中间件，以及通用子代理编辑。它们是在不更改 `create_deep_agent` 调用点的前提下，为特定模型调整 harness 行为的主要方式。在 Python 中构建配置档案时使用 `HarnessProfile`；当[加载或保存 YAML/JSON 文件](#从配置文件加载配置档案)时使用 `HarnessProfileConfig`。Deep Agents 为 OpenAI 和 Anthropic (Claude) 模型内置了 harness 配置档案。
+
+**提供商配置档案**是一个更窄的配套 API，用于*模型构建* kwargs，不影响 harness。大多数调用者不需要它们；当你想要 `init_chat_model` 默认值、凭据检查或运行时派生的 kwargs 作为提供商选择的默认值时（例如，打包提供商集成时），才会用到它。
+
+## Harness 配置档案
+
+一个 `HarnessProfile` 描述了提示组装、工具可见性、中间件和默认子代理的调整，这些在聊天模型构建后由 `create_deep_agent` 应用：
+
+```python
+from deepagents import (
+    GeneralPurposeSubagentProfile,
+    HarnessProfile,
+    register_harness_profile,
+)
+
+register_harness_profile(
+    "openai:gpt-5.4",
+    HarnessProfile(
+        system_prompt_suffix="用少于 100 字回答。",
+        excluded_tools={"execute"},
+        excluded_middleware={"SummarizationMiddleware"},
+        general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
+    ),
+)
+```
+
+<ResponseField name="base_system_prompt" type="string">
+    替换 Deep Agents 的基础系统提示（[提示组装](/oss/deepagents/customization#prompt-assembly)中的 `CUSTOM`）。
+</ResponseField>
+
+<ResponseField name="system_prompt_suffix" type="string">
+    向组装好的基础提示追加文本（[提示组装](/oss/deepagents/customization#prompt-assembly)中的 `SUFFIX`）；应用于主代理、声明式子代理和自动添加的通用子代理。
+</ResponseField>
+
+<ResponseField name="tool_description_overrides" type="Mapping[str, str]">
+    按工具名称覆盖单个工具的描述。
+</ResponseField>
+
+<ResponseField name="excluded_tools" type="frozenset[str]">
+    从工具集中移除特定的 harness 级别工具。按工具名称（字符串）匹配，作为后注入过滤器应用，因此可以丢弃用户提供的工具和 harness 中间件添加的工具。参见[不使用默认文件系统工具运行](/oss/deepagents/harness#virtual-filesystem-access)的示例。
+</ResponseField>
+
+<ResponseField name="excluded_middleware" type="frozenset[type[AgentMiddleware] | str]">
+    从堆栈中剥离特定的中间件类。接受中间件类或字符串名称。
+</ResponseField>
+
+<ResponseField name="extra_middleware" type="Sequence[AgentMiddleware] | Callable[[], Sequence[AgentMiddleware]]">
+    将中间件追加到此配置档案应用的每个堆栈。
+</ResponseField>
+
+<ResponseField name="general_purpose_subagent" type="GeneralPurposeSubagentProfile">
+    禁用、重命名或重新提示通用子代理。当此字段的 `system_prompt` 与 `base_system_prompt` 同时设置时，通用子代理特定的提示胜出——参见[通用子代理提示](/oss/deepagents/customization#general-purpose-subagent-prompt)。
+</ResponseField>
+
+<Note>
+    调用者提供的 `system_prompt=` 始终位于组装好的提示开头，`system_prompt_suffix` 始终位于末尾——无论选择哪个模型。相同的覆盖规则也适用于子代理：每个子代理针对自己的模型重新运行配置档案解析。参见[提示组装](/oss/deepagents/customization#prompt-assembly)了解每种情况的完整分解（主代理、子代理和通用子代理）。
+</Note>
+
+<Warning>
+    要在没有 `task` 工具的情况下运行代理，请参阅[无子代理运行](/oss/deepagents/subagents#running-without-subagents)——设置 `general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False)` 并且不通过 `subagents=` 传递同步子代理。`SubAgentMiddleware`（以及 `task` 工具）仅在至少存在一个同步子代理时才会被附加，因此此配置会干净地将其排除。异步子代理不受影响。
+
+    在 `excluded_middleware` 中列出 `FilesystemMiddleware`、`SubAgentMiddleware` 或内部的权限中间件会引发 `ValueError`——它们是必需的脚手架。要从模型隐藏它们的工具而不移除中间件，请改用 `excluded_tools`——参见[不使用默认文件系统工具运行](/oss/deepagents/harness#virtual-filesystem-access)。
+</Warning>
+
+`excluded_middleware` 中的条目接受两种形式：
+
+- 中间件*类*（按精确类型匹配），或匹配 `AgentMiddleware.name` 的纯字符串。对内置的和公共别名使用纯字符串，如 `"SummarizationMiddleware"`。
+- 一个 `module:Class` 导入引用（例如 `"my_pkg.middleware:TelemetryMiddleware"`）用于从配置文件中定位确切的中间件类。导入引用是惰性解析的，因此仅用于可信的本地配置——加载它会导入 Python 代码。
+
+<Accordion
+    title="预配置模型实例的查找顺序"
+>
+    当你传递预配置的聊天模型实例而不是 `provider:model` 字符串时，harness 会从实例合成规范的 `provider:identifier` 键，并按以下顺序查找：
+
+    1. 精确的 `provider:identifier` 匹配
+    2. 仅标识符（仅当标识符已包含 `:` 时）
+    3. 仅提供商回退
+</Accordion>
+
+## 注册键
+
+两种配置档案类型使用相同的键格式：
+
+- **提供商级别**——裸的提供商名称如 `"openai"` 应用于该提供商的所有模型。
+- **模型级别**——完全限定的 `provider:model` 键如 `"openai:gpt-5.4"` 仅应用于该特定模型。
+
+当提供商级别和模型级别配置档案同时存在时，它们在解析时合并。未设置的模型级别字段从提供商级别配置档案继承；显式的模型级别值覆盖它们。
+
+在现有键下重新注册会在之前的配置档案之上合并新配置档案——不会替换它。参见[合并语义](#合并语义)了解按字段的规则。
+
+<Note>
+    没有匹配所有提供商的通配符键。要将相同的覆盖应用于所有地方——比如无论选择哪个模型都删除 `TodoListMiddleware`——在你使用的每个提供商键下注册配置档案。配置档案适用于依赖于所选模型的调整。应适用于所有模型的全局调整应在 `create_deep_agent` 调用点上进行。
+</Note>
+
+## 合并语义
+
+| 字段 | 合并行为 |
+| --- | --- |
+| `base_system_prompt`, `system_prompt_suffix` | 设置时新值胜出；否则继承 |
+| `tool_description_overrides` | 按键合并映射；共享键上新值胜出 |
+| `excluded_tools`, `excluded_middleware` | 集合并集 |
+| `extra_middleware` | 按具体类合并：新实例替换其位置上的现有实例，新出现的类追加 |
+| `general_purpose_subagent` | 按字段合并（未设置的字段继承） |
+| `init_kwargs` (提供商) | 按键合并字典；共享键上新值胜出 |
+| `pre_init` (提供商) | 可调用对象链式调用：先运行现有的，再运行新的 |
+| `init_kwargs_factory` (提供商) | 工厂链式调用，每次 `resolve_model` 调用时合并它们的输出 |
+
+## 提供商配置档案
+
+一个 `ProviderProfile` 声明 Deep Agents 应如何为给定提供商或特定模型规范构造聊天模型。它仅在你提供 `provider:model` 字符串创建深度代理时应用，而不是当你传递预配置的 @[`init_chat_model`] 模型时：
+
+```python
+from deepagents import ProviderProfile, register_provider_profile
+
+register_provider_profile(
+    "openai",
+    ProviderProfile(init_kwargs={"temperature": 0}),
+)
+```
+
+<ResponseField name="init_kwargs" type="Mapping[str, Any]">
+    转发给 `init_chat_model` 的静态初始化参数。
+</ResponseField>
+
+<ResponseField name="pre_init" type="Callable[[str], None]">
+    构造前运行的副作用（例如，凭据验证）。
+</ResponseField>
+
+<ResponseField name="init_kwargs_factory" type="Callable[[], dict[str, Any]]">
+    从运行时状态派生的 kwargs（例如，从环境变量中获取的头部信息）。
+</ResponseField>
+
+## 从配置文件加载配置档案
+
+对于 YAML/JSON 支持的工作流，使用 `HarnessProfileConfig`。它镜像了 `HarnessProfile` 的声明性子集（提示文本、工具描述覆盖、排除的工具和中间件、通用子代理编辑），并拥有 `to_dict` / `from_dict` 方法。运行时状态——中间件实例、工厂和类形式的 `excluded_middleware` 条目——保留在 `HarnessProfile` 上。
+
+`register_harness_profile` 接受任一类型，因此基于配置的调用者不需要手动转换步骤：
+
+```yaml
+# openai.yaml
+base_system_prompt: 你很有帮助。
+system_prompt_suffix: 简要回答。
+excluded_tools:
+  - execute
+  - grep
+excluded_middleware:
+  - SummarizationMiddleware
+  - my_pkg.middleware:TelemetryMiddleware
+general_purpose_subagent:
+  enabled: false
+```
+
+```python
+import yaml
+from deepagents import HarnessProfileConfig, register_harness_profile
+
+with open("openai.yaml") as f:
+    register_harness_profile(
+        "openai",
+        HarnessProfileConfig.from_dict(yaml.safe_load(f)),
+    )
+```
+
+要反向操作，`HarnessProfileConfig.from_harness_profile(...)` 在运行时配置档案仅使用可序列化特性时将其导出回声明式形状：
+
+- 类形式的 `excluded_middleware` 条目序列化为公共别名（当类通过 `serialized_name: ClassVar[str]` 暴露时）或 `module:Class` 导入引用。
+- 非空的 `extra_middleware` 和在 `__main__` 中声明或在函数作用域内声明的中间件类无法序列化——导出会引发 `ValueError`。
+
+## 将配置档案作为插件发布
+
+可分发的配置档案可以通过 `importlib.metadata` 入口点自行注册，而不需要调用者手动运行 `register_*_profile`。加载顺序是**先内置，然后是入口点插件，最后是用户代码中的任何直接 `register_*_profile` 调用**；所有三条路径都汇聚到相同的加法注册中，因此在同一键下，后来的注册叠加在先前的之上。
+
+在分发包自己的 `pyproject.toml` 中声明入口点：
+
+```toml
+[project.entry-points."deepagents.harness_profiles"]
+my_provider = "my_pkg.profiles:register_harness"
+
+[project.entry-points."deepagents.provider_profiles"]
+my_provider = "my_pkg.profiles:register_provider"
+```
+
+每个目标解析为一个零参数可调用对象，在导入 `deepagents.profiles` 时执行注册：
+
+```python
+from deepagents import (
+    HarnessProfile,
+    ProviderProfile,
+    register_harness_profile,
+    register_provider_profile,
+)
+
+
+def register_harness() -> None:
+    register_harness_profile(
+        "my_provider",
+        HarnessProfile(system_prompt_suffix="并行批处理独立的工具调用。"),
+    )
+
+
+def register_provider() -> None:
+    register_provider_profile(
+        "my_provider",
+        ProviderProfile(init_kwargs={"temperature": 0}),
+    )
+```
+
+## 相关
+
+- [Harness](/oss/deepagents/harness) —— harness 能力概览
+- [模型](/oss/deepagents/models) —— 配置模型提供商和参数
+- [自定义](/oss/deepagents/customization) —— 完整的 `create_deep_agent` 配置面
