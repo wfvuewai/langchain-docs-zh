@@ -39,20 +39,37 @@ jobs:
         run: npm install -g mint@latest
 
       - name: Export static site with mint export
+        timeout-minutes: 120
         run: |
           cd build
-          echo "Running mint export..."
+          echo "=== Starting mint export at $(date) ==="
+          echo "Files in build/: $(find . -type f | wc -l)"
+          echo "Directory structure:"
+          find . -maxdepth 2 -type d | sort
+          echo "=== Running mint export... ==="
           mint export --output ../site.zip 2>&1
+          echo "=== mint export completed at $(date) ==="
+          echo "Site ZIP size:"
+          ls -lh ../site.zip
 
       - name: Extract and prepare deploy
         run: |
           mkdir -p deploy-site
+          if [ ! -f site.zip ]; then
+            echo "ERROR: site.zip not found!"
+            ls -la
+            exit 1
+          fi
+          echo "Unzipping site.zip..."
           unzip -o site.zip -d deploy-site/
           rm -f site.zip
           echo "=== Deploy site contents ==="
+          echo "Files in deploy-site: $(find deploy-site -type f | wc -l)"
+          find deploy-site -maxdepth 2 -type d | sort
+          echo "--- Top-level files ---"
           find deploy-site -maxdepth 1 -type f | head -20
-          find deploy-site/_next -type f 2>/dev/null | head -5
-          echo "Total files: $(find deploy-site -type f | wc -l)"
+          echo "--- HTML files ---"
+          find deploy-site -name "*.html" -type f | head -20
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

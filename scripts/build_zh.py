@@ -67,6 +67,28 @@ def copy_chinese_content() -> None:
     logger.info("Chinese content copied.")
 
 
+def remove_english_content() -> None:
+    """Remove English-only content from build/ to speed up mint export."""
+    logger.info("Step 3: Removing English-only content from build/...")
+
+    dirs_to_remove = ["langsmith", "oss"]
+    for dir_name in dirs_to_remove:
+        dir_path = BUILD_DIR / dir_name
+        if dir_path.exists() and dir_path.is_dir():
+            shutil.rmtree(dir_path)
+            logger.info("  Removed: %s/", dir_name)
+
+    files_to_remove = ["index.mdx", "playground.mdx", "use-these-docs.mdx"]
+    for file_name in files_to_remove:
+        file_path = BUILD_DIR / file_name
+        if file_path.exists() and file_path.is_file():
+            file_path.unlink()
+            logger.info("  Removed: %s", file_name)
+
+    remaining = sum(1 for _ in BUILD_DIR.rglob("*") if _.is_file())
+    logger.info("Files remaining in build/: %d", remaining)
+
+
 def replace_docs_json() -> None:
     """Replace build/docs.json with docs.zh.json."""
     zh_config = SRC_DIR / "docs.zh.json"
@@ -76,7 +98,7 @@ def replace_docs_json() -> None:
         logger.warning("docs.zh.json not found, skipping replacement")
         return
 
-    logger.info("Step 3: Replacing docs.json with docs.zh.json...")
+    logger.info("Step 4: Replacing docs.json with docs.zh.json...")
     shutil.copy2(zh_config, build_config)
     logger.info("docs.json replaced.")
 
@@ -84,8 +106,9 @@ def replace_docs_json() -> None:
 def main() -> None:
     run_pipeline_build()
     copy_chinese_content()
+    remove_english_content()
     replace_docs_json()
-    logger.info("✅ Chinese build preparation complete. Run 'mint build' from build/ directory.")
+    logger.info("✅ Chinese build preparation complete.")
 
 
 if __name__ == "__main__":
