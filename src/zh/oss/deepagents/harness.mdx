@@ -1,0 +1,217 @@
+---
+title: Harness 能力
+sidebarTitle: 概览
+---
+
+智能体 harness 是多种能力的组合，使构建长时间运行的智能体更加容易：
+
+- [规划能力](#planning-capabilities)
+- [虚拟文件系统](#virtual-filesystem-access)
+- [文件系统权限](#filesystem-permissions)
+- [任务委派（子代理）](#task-delegation-subagents)
+- [上下文与 Token 管理](#context-management)
+- [代码执行](#code-execution)
+- [人机协同](#human-in-the-loop)
+- [Harness 配置文件](#harness-profiles)
+
+此外，Deep Agents 还使用[技能](#skills)和[记忆](#memory)来提供额外的上下文和指令。
+
+![Deep Agents 开放 harness：规划、虚拟文件系统、权限、子代理、上下文管理、代码执行、人机协同、技能和记忆](/oss/images/deepagents/production/open-harness.png)
+
+## 规划能力
+
+Harness 提供了一个 `write_todos` 工具，智能体可以使用它来维护结构化的任务列表。
+
+**特性：**
+- 跟踪多个任务及其状态（`'pending'`、`'in_progress'`、`'completed'`）
+- 持久化保存在智能体状态中
+- 帮助智能体组织复杂的多步骤工作
+- 适用于长时间运行的任务和规划
+
+## 虚拟文件系统访问
+
+Harness 提供了一个可配置的虚拟文件系统，可由不同的可插拔后端支持。
+这些后端支持以下文件系统操作：
+
+| 工具 | 说明 |
+| ---- | ----------- |
+| `ls` | 列出目录中的文件及其元数据（大小、修改时间） |
+| `read_file` | 读取文件内容并显示行号，支持对大文件设置 offset/limit。还支持返回非文本文件（图片、视频、音频和文档）的多模态内容块。详见下方支持的文件扩展名。 |
+| `write_file` | 创建新文件 |
+| `edit_file` | 在文件中执行精确字符串替换（支持全局替换模式） |
+| `glob` | 查找匹配模式的文件（例如 `**/*.py`） |
+| `grep` | 搜索文件内容，支持多种输出模式（仅文件名、带上下文的内容或计数） |
+| `execute` | 在环境中运行 Shell 命令（仅适用于[沙箱后端](/zh/oss/deepagents/sandboxes)） |
+
+<Accordion title="支持的多模态文件扩展名">
+
+| 类型 | 扩展名 |
+| ---- | ------ |
+| [图片](/zh/oss/langchain/messages#multimodal) | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.heic`, `.heif` |
+| [视频](/zh/oss/langchain/messages#multimodal) | `.mp4`, `.mpeg`, `.mov`, `.avi`, `.flv`, `.mpg`, `.webm`, `.wmv`, `.3gpp` |
+| [音频](/zh/oss/langchain/messages#multimodal) | `.wav`, `.mp3`, `.aiff`, `.aac`, `.ogg`, `.flac` |
+| [文件](/zh/oss/langchain/messages#multimodal) | `.pdf`, `.ppt`, `.pptx` |
+
+</Accordion>
+
+<Accordion title="在没有默认文件系统工具的情况下运行" icon="ban">
+    要隐藏上述文件系统工具，请注册一个包含 `excluded_tools` 的 [harness 配置文件](#harness-profiles)：
+
+    ```python
+    from deepagents import HarnessProfile, register_harness_profile
+
+    register_harness_profile(
+        "anthropic:claude-sonnet-4-6",
+        HarnessProfile(
+            excluded_tools=frozenset(
+                {"ls", "read_file", "write_file", "edit_file", "glob", "grep"}
+            ),
+        ),
+    )
+    ```
+
+    通过 `excluded_middleware` 移除 `FilesystemMiddleware` 本身会被有意拒绝——请使用 `excluded_tools` 仅隐藏模型可见的工具接口，保留中间件。要移除 `task` 工具，请参阅[在没有子代理的情况下运行](/zh/oss/deepagents/subagents#running-without-subagents)。
+</Accordion>
+
+虚拟文件系统还用于其他多种 harness 能力，如技能、记忆、代码执行和上下文管理。
+你还可以在构建 Deep Agents 的自定义工具和中间件时使用文件系统。
+
+更多信息请参阅[后端](/zh/oss/deepagents/backends)。
+
+## 文件系统权限
+
+Harness 支持声明式权限规则，用于控制智能体可以读取或写入的文件和目录。权限适用于上述内置文件系统工具，并按照声明顺序以"首匹配胜出"的语义进行求值。
+
+**工作原理：**
+- 在创建智能体时向 `permissions=` 传递规则列表
+- 每条规则指定 `operations`（`"read"`、`"write"`）、`paths`（glob 模式）和 `mode`（`"allow"` 或 `"deny"`）
+- 第一条匹配的规则胜出。如果没有规则匹配，则允许该操作。
+
+**为什么有用：**
+- 将智能体限制在特定目录中（例如 `/workspace/`）
+- 保护敏感文件（例如 `.env`、凭据）
+- 给予代理比父智能体更窄的访问权限
+
+权限不适用于[沙箱后端](/zh/oss/deepagents/sandboxes)，后者通过 `execute` 工具支持任意命令执行。对于自定义验证逻辑，请使用[后端策略钩子](/zh/oss/deepagents/backends#add-policy-hooks)。
+
+有关完整的规则结构、示例和子代理继承，请参阅[权限](/zh/oss/deepagents/permissions)。
+
+## 任务委派（子代理）
+
+Harness 允许主智能体创建临时的"子代理"来处理独立的多步骤任务。
+
+**为什么有用：**
+- **上下文隔离** - 子代理的工作不会混乱主智能体的上下文
+- **并行执行** - 多个子代理可以同时运行
+- **专业化** - 子代理可以有不同的工具/配置
+- **Token 效率** - 大型子任务的上下文被压缩为单一结果
+
+**工作原理：**
+- 主智能体有一个 `task` 工具
+- 调用时，它会创建一个新的智能体实例，拥有自己的上下文
+- 子代理自主执行直到完成
+- 向主智能体返回一个最终报告
+- 可以使用默认的 [`general-purpose` 子代理](/zh/oss/deepagents/subagents#default-subagent)（默认启用）或添加[自定义子代理](/zh/oss/deepagents/subagents#custom-subagents)
+- 子代理是无状态的（不能发送多条消息回来）
+
+<Accordion title="在没有子代理的情况下运行（无 `task` 工具）" icon="ban">
+    要在没有 `task` 工具的情况下运行智能体，请参阅[在没有子代理的情况下运行](/zh/oss/deepagents/subagents#running-without-subagents)。不要尝试通过 `excluded_middleware` 移除 `SubAgentMiddleware`——这会被有意拒绝。相反，通过 [harness 配置文件](#harness-profiles)禁用自动添加的子代理，并通过 `subagents=` 不传递同步子代理。异步子代理不受影响。
+</Accordion>
+
+## 上下文管理
+
+Harness 管理上下文，使深度智能体能够在 token 限制内处理长时间运行的任务，同时保留所需信息。
+
+**工作原理：**
+- **输入上下文** — 系统提示词、记忆、技能和工具提示词塑造了智能体在启动时所知道的内容
+- **压缩** — 内置的卸载和摘要功能在任务进行中将上下文保持在窗口限制内
+- **隔离** — 子代理隔离繁重的工作，只返回结果（参见[任务委派](#task-delegation-subagents)）
+- **长期记忆** — 通过虚拟文件系统实现跨线程的持久化存储
+
+**为什么有用：**
+- 支持超过单个上下文窗口的多步骤任务
+- 将最相关的信息保持在范围内，无需手动修剪
+- 通过自动摘要和卸载减少 token 使用量
+
+有关配置详情，请参阅[上下文工程](/zh/oss/deepagents/context-engineering)。
+
+## 代码执行
+
+Deep Agents 支持两种代码执行方式：
+
+- [沙箱后端](/zh/oss/deepagents/sandboxes)通过 `execute` 工具在隔离环境中运行 Shell 命令。
+- [解释器](/zh/oss/deepagents/interpreters)添加一个 `eval` 工具，在作用域限定的 QuickJS 运行时中运行 JavaScript。
+
+当智能体需要安装依赖、运行测试、调用 CLI 或使用操作系统文件系统时，使用沙箱后端。沙箱后端实现了 `SandboxBackendProtocolV2`；检测到时，harness 会将 `execute` 工具添加到智能体的可用工具中。
+
+当智能体需要一个轻量级的可编程层用于循环、批处理、确定性数据转换或编程工具调用时，使用解释器。解释器不提供 Shell 访问、包安装或文件系统和网络访问。
+
+有关沙箱设置、提供商和文件传输 API，请参阅[沙箱](/zh/oss/deepagents/sandboxes)。有关 QuickJS 运行时和编程工具调用，请参阅[解释器](/zh/oss/deepagents/interpreters)。
+
+## 人机协同
+
+Harness 可以在指定的工具调用处暂停智能体执行，以允许人工批准或修改。此功能通过 `interrupt_on` 参数选择加入。
+
+**配置：**
+- 向 `create_deep_agent` 传递 `interrupt_on` 参数，内容为工具名称到中断配置的映射
+- 示例：`interrupt_on={"edit_file": True}` 在每次编辑前暂停
+- 你可以在被提示时提供审批消息或修改工具输入
+
+**为什么有用：**
+- 对破坏性操作的安全门控
+- 在昂贵的 API 调用前进行用户验证
+- 交互式调试和指导
+
+## 技能
+
+Harness 支持技能功能，为你的深度智能体提供专门的工作流和领域知识。
+
+**工作原理：**
+- 技能遵循 [Agent Skills 标准](https://agentskills.io/)
+- 每个技能是一个包含 `SKILL.md` 文件（包含指令和元数据）的目录
+- 技能可以包含额外的脚本、参考文档、模板和其他资源
+- 技能使用渐进式披露——只有当智能体确定它们对当前任务有用时才加载
+- 智能体在启动时读取每个 `SKILL.md` 文件的前置元数据，然后在需要时查看完整的技能内容
+
+**为什么有用：**
+- 通过仅在需要时加载相关技能来减少 token 使用量
+- 将能力打包成更大的操作，并附带额外的上下文
+- 提供专业专长，而不会使系统提示词变得臃肿
+- 实现模块化、可复用的智能体能力
+
+更多信息请参阅[技能](/zh/oss/deepagents/skills)。
+
+## 记忆
+
+Harness 支持持久化记忆文件，为你的深度智能体提供跨对话的额外上下文。
+这些文件通常包含通用的编码风格、偏好、约定和指南，帮助智能体理解如何使用你的代码库并遵循你的偏好。
+
+**工作原理：**
+- 使用 [`AGENTS.md` 文件](https://agents.md/)提供持久化上下文
+- 记忆文件始终被加载（与技能不同，技能使用渐进式披露）
+- 在创建智能体时向 `memory` 参数传递一个或多个文件路径
+- 文件存储在智能体的后端（StateBackend、StoreBackend 或 FilesystemBackend）中
+- 智能体可以根据你的交互、反馈和识别到的模式更新记忆
+
+**为什么有用：**
+- 提供持久化上下文，无需每次对话重新指定
+- 适用于存储用户偏好、项目指南或领域知识
+- 始终对智能体可用，确保一致的行为
+
+有关配置详情和示例，请参阅[记忆](/zh/oss/deepagents/customization#memory)。
+
+## Harness 配置文件
+
+Harness 可以在选择特定提供商或模型时应用声明式配置包（`HarnessProfile`）。配置文件在模型构建后调整运行时行为，无需逐智能体设置代码。
+
+**工作原理：**
+- 在提供商名称（`"openai"`）或 `provider:model` 键（`"openai:gpt-5.4"`）下注册配置文件
+- `create_deep_agent` 在解析模型时查找并应用配置文件
+- 提供商级别和模型级别的配置文件在解析时合并
+
+**为什么有用：**
+- 将每个提供商或每个模型的默认设置（系统提示词调整、工具覆盖、中间件）打包在一个地方
+- 在切换模型时保持 `create_deep_agent` 调用点不变
+- 通过入口点作为插件发布可复用的配置文件
+
+有关完整的字段列表、合并语义和插件打包，请参阅[配置文件](/zh/oss/deepagents/profiles)。
