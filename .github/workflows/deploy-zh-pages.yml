@@ -38,15 +38,18 @@ jobs:
       - name: Build Chinese docs
         run: uv run python scripts/build_zh.py
 
-      - name: Build Mintlify site
+      - name: Export Mintlify site
         run: |
           cd build
-          mint build
+          mkdir -p ../site
+          mint export --output ../site.zip
+          cd ../site
+          unzip -o ../site.zip
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build
+          path: site
 
   deploy:
     needs: build
