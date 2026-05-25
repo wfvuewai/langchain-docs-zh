@@ -68,25 +68,34 @@ def copy_chinese_content() -> None:
 
 
 def remove_english_content() -> None:
-    """Remove English-only content from build/ to speed up mint export."""
-    logger.info("Step 3: Removing English-only content from build/...")
+    """Remove English-only MDX content from build/ to speed up mint export.
 
-    dirs_to_remove = ["langsmith", "oss"]
-    for dir_name in dirs_to_remove:
+    Keeps shared assets (images, fonts, snippets, OpenAPI JSON specs, etc.)
+    so mint export can resolve all references from Chinese docs.json.
+    """
+    logger.info("Step 3: Removing English-only MDX content from build/...")
+
+    dirs_to_scan = ["langsmith", "oss"]
+    removed_count = 0
+    for dir_name in dirs_to_scan:
         dir_path = BUILD_DIR / dir_name
-        if dir_path.exists() and dir_path.is_dir():
-            shutil.rmtree(dir_path)
-            logger.info("  Removed: %s/", dir_name)
+        if not dir_path.exists() or not dir_path.is_dir():
+            continue
+        for item in dir_path.rglob("*"):
+            if item.is_file() and item.suffix.lower() in {".mdx", ".md"}:
+                item.unlink()
+                removed_count += 1
 
-    files_to_remove = ["index.mdx", "playground.mdx", "use-these-docs.mdx"]
-    for file_name in files_to_remove:
+    # Also remove top-level English index pages
+    for file_name in ["index.mdx", "playground.mdx", "use-these-docs.mdx"]:
         file_path = BUILD_DIR / file_name
         if file_path.exists() and file_path.is_file():
             file_path.unlink()
-            logger.info("  Removed: %s", file_name)
+            removed_count += 1
 
     remaining = sum(1 for _ in BUILD_DIR.rglob("*") if _.is_file())
-    logger.info("Files remaining in build/: %d", remaining)
+    logger.info("  Removed %d English MDX files", removed_count)
+    logger.info("  Files remaining in build/: %d", remaining)
 
 
 def replace_docs_json() -> None:
