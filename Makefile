@@ -1,4 +1,4 @@
-.PHONY: all dev build export format lint test install clean lint_md lint_md_fix lint_prose broken-links broken-links-with-anchors format-check code-snippets test-code-samples check-cross-refs
+.PHONY: all dev build export format lint test install clean lint_md lint_md_fix lint_prose broken-links broken-links-with-anchors format-check code-snippets test-code-samples check-cross-refs build-zh
 
 # Default target
 all: help
@@ -161,6 +161,13 @@ test-code-samples:
 check-cross-refs:
 	@PYTHONPATH=$(CURDIR) uv run python scripts/check_cross_refs.py
 
+# Build Chinese documentation (for GitHub Pages)
+build-zh:
+	@echo "Building Chinese documentation..."
+	npm install
+	PYTHONPATH=$(CURDIR) uv run python scripts/build_zh.py
+	@echo "Chinese build preparation complete. Run 'cd build && mint build' to generate the site."
+
 help:
 	@echo "Available commands:"
 	@echo "  make dev                - Start development mode with file watching and mint dev"
@@ -168,6 +175,7 @@ help:
 	@echo "  make export             - Run mint export from ./build (optional: MINT_EXPORT_ARGS)"
 	@echo "  make broken-links       - Check for broken links in built documentation"
 	@echo "  make check-cross-refs   - Check for unresolved @[ref] cross-references"
+	@echo "  make build-zh           - Build Chinese documentation for GitHub Pages"
 	@echo "  make broken-links-with-anchors - Same as above, also validates anchor links"
 	@echo "  make format             - Format code"
 	@echo "  make lint               - Lint code"
