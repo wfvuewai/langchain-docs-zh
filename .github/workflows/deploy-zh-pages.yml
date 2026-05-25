@@ -35,16 +35,28 @@ jobs:
       - name: Install Mintlify CLI
         run: npm install -g mint@4.2.406
 
+      - name: Install wget
+        run: sudo apt-get update && sudo apt-get install -y wget
+
       - name: Build Chinese docs
         run: uv run python scripts/build_zh.py
 
-      - name: Export Mintlify site
+      - name: Start Mintlify dev server and capture static site
         run: |
           cd build
+          mint dev --port 3000 &
+          MINT_PID=$!
+          echo "Mintlify PID: $MINT_PID"
+          sleep 15
           mkdir -p ../site
-          mint export --output ../site.zip
           cd ../site
-          unzip -o ../site.zip
+          wget --mirror --page-requisites --adjust-extension --convert-links \
+               --no-parent --wait=0.1 --limit-rate=500K \
+               --directory-prefix=. \
+               http://localhost:3000/ 2>&1 | tail -20
+          kill $MINT_PID 2>/dev/null || true
+          mv localhost:3000/* . 2>/dev/null || true
+          find . -maxdepth 1 -name "*.html" -o -name "*.js" -o -name "*.css" -o -name "*.json" | head -20
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

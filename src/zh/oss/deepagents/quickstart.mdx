@@ -1,0 +1,184 @@
+---
+title: 快速入门
+description: 在几分钟内构建你的第一个 Deep Agent
+---
+
+import QuickstartSearchToolPy from '/snippets/code-samples/quickstart-search-tool-py.mdx';
+import QuickstartSearchToolJs from '/snippets/code-samples/quickstart-search-tool-js.mdx';
+import QuickstartCreateAgentPy from '/snippets/code-samples/quickstart-create-agent-py.mdx';
+import QuickstartCreateAgentJs from '/snippets/code-samples/quickstart-create-agent-js.mdx';
+import QuickstartRunAgentPy from '/snippets/code-samples/quickstart-run-agent-py.mdx';
+import QuickstartRunAgentJs from '/snippets/code-samples/quickstart-run-agent-js.mdx';
+
+本指南将带你创建第一个具备规划、文件系统工具和子代理能力的 Deep Agent。你将构建一个能够进行调研并撰写报告的研究智能体。
+
+<Tip>
+    **使用 AI 编码助手？**
+
+    - 安装 [LangChain Docs MCP 服务器](/zh/use-these-docs) 让你的智能体能访问最新的 LangChain 文档和示例。
+    - 安装 [LangChain Skills](https://github.com/langchain-ai/langchain-skills) 以提升智能体在 LangChain 生态系统任务上的表现。
+</Tip>
+
+## 前置条件
+
+开始之前，请确保你拥有一个模型提供商的 API 密钥（例如 Gemini、Anthropic、OpenAI）。
+
+<Note>
+    Deep Agents 需要一个支持[工具调用](/zh/oss/langchain/models#tool-calling)的模型。请参阅[自定义](/zh/oss/deepagents/customization#model)了解如何配置你的模型。
+</Note>
+
+## 第 1 步：安装依赖
+
+:::python
+<CodeGroup>
+    ```bash pip
+    pip install deepagents tavily-python
+    ```
+
+    ```bash uv
+    uv init
+    uv add deepagents tavily-python
+    uv sync
+    ```
+</CodeGroup>
+:::
+
+:::js
+<CodeGroup>
+    ```bash npm
+    npm install deepagents langchain @langchain/core @langchain/tavily
+    ```
+
+    ```bash yarn
+    yarn add deepagents langchain @langchain/core @langchain/tavily
+    ```
+
+    ```bash pnpm
+    pnpm add deepagents langchain @langchain/core @langchain/tavily
+    ```
+</CodeGroup>
+:::
+
+<Note>
+    本指南使用 [Tavily](https://tavily.com/) 作为示例搜索提供商，但你可以替换为任何搜索 API（例如 DuckDuckGo、SerpAPI、Brave Search）。
+</Note>
+
+## 第 2 步：设置 API 密钥
+
+<Tabs>
+    <Tab title="Google">
+        ```bash
+        export GOOGLE_API_KEY="your-api-key"
+        export TAVILY_API_KEY="your-tavily-api-key"
+        ```
+    </Tab>
+    <Tab title="OpenAI">
+        ```bash
+        export OPENAI_API_KEY="your-api-key"
+        export TAVILY_API_KEY="your-tavily-api-key"
+        ```
+    </Tab>
+    <Tab title="Anthropic">
+        ```bash
+        export ANTHROPIC_API_KEY="your-api-key"
+        export TAVILY_API_KEY="your-tavily-api-key"
+        ```
+    </Tab>
+    <Tab title="OpenRouter">
+        ```bash
+        export OPENROUTER_API_KEY="your-api-key"
+        export TAVILY_API_KEY="your-tavily-api-key"
+        ```
+    </Tab>
+    <Tab title="Fireworks">
+        ```bash
+        export FIREWORKS_API_KEY="your-api-key"
+        export TAVILY_API_KEY="your-tavily-api-key"
+        ```
+    </Tab>
+    <Tab title="Baseten">
+        ```bash
+        export BASETEN_API_KEY="your-api-key"
+        export TAVILY_API_KEY="your-tavily-api-key"
+        ```
+    </Tab>
+    <Tab title="Ollama">
+        ```bash
+        # 本地：Ollama 必须在你的机器上运行
+        # 云端：设置 Ollama API 密钥以使用托管推理
+        export OLLAMA_API_KEY="your-api-key"
+        export TAVILY_API_KEY="your-tavily-api-key"
+        ```
+    </Tab>
+    <Tab title="其他">
+        ```bash
+        # 设置你的提供商 API 密钥
+        export <PROVIDER>_API_KEY="your-api-key"
+        export TAVILY_API_KEY="your-tavily-api-key"
+        ```
+
+        Deep Agents 适用于任何 [LangChain 聊天模型](/zh/oss/deepagents/models#supported-models)。请设置你的提供商的 API 密钥。
+    </Tab>
+</Tabs>
+
+## 第 3 步：创建搜索工具
+
+:::python
+<QuickstartSearchToolPy />
+:::
+
+:::js
+<QuickstartSearchToolJs />
+:::
+
+## 第 4 步：创建 Deep Agent
+
+以 `provider:model` 格式传递 `model` 字符串，或传递一个[已初始化的模型实例](/zh/oss/deepagents/models#configure-model-parameters)。请参阅[支持的模型](/zh/oss/deepagents/models#supported-models)了解所有提供商，以及[推荐模型](/zh/oss/deepagents/models#suggested-models)了解经过测试的建议。
+
+:::python
+<QuickstartCreateAgentPy />
+:::
+
+:::js
+<QuickstartCreateAgentJs />
+:::
+
+## 第 5 步：运行智能体
+
+:::python
+<QuickstartRunAgentPy />
+:::
+
+:::js
+<QuickstartRunAgentJs />
+:::
+
+<Tip>
+使用 [LangSmith](https://smith.langchain.com) 追踪智能体的规划步骤、工具调用和子代理委派。按照[可观测性快速入门](/zh/langsmith/observability-quickstart)进行设置。
+</Tip>
+
+## 工作原理
+
+你的 Deep Agent 会自动：
+
+1. **规划方法**——使用内置的 [`write_todos`](/zh/oss/deepagents/harness#planning-capabilities) 工具分解研究任务
+1. **进行调研**——调用 `internet_search` 工具收集信息
+1. **管理上下文**——使用文件系统工具（[`write_file`](/zh/oss/deepagents/harness#virtual-filesystem-access)、[`read_file`](/zh/oss/deepagents/harness#virtual-filesystem-access)）卸载大量搜索结果
+1. **生成子代理**——根据需要将复杂的子任务委派给专门的子代理
+1. **综合报告**——将发现结果整理为连贯的回复
+
+## 示例
+
+有关你可以使用 Deep Agents 构建的智能体、模式和应用程序，请参阅[示例](https://github.com/langchain-ai/deepagents/tree/main/examples)。
+
+## 流式传输
+
+Deep Agents 内置了[流式传输](/zh/oss/langchain/event-streaming)功能，通过 LangGraph 实现智能体执行的实时更新。这允许你逐步观察输出，并审查和调试智能体及子代理的工作，例如工具调用、工具结果和 LLM 响应。
+
+## 下一步
+
+现在你已经构建了第一个 Deep Agent：
+
+- **自定义你的智能体**：了解[自定义选项](/zh/oss/deepagents/customization)，包括自定义系统提示词、工具和子代理。
+- **添加长期记忆**：启用跨对话的[持久化记忆](/zh/oss/deepagents/memory)。
+- **部署到生产环境**：使用[托管 Deep Agents](/zh/langsmith/deploy-managed-deep-agent) 在 LangSmith 中创建、运行和运维 Deep Agents。

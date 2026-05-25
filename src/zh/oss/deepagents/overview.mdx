@@ -1,0 +1,350 @@
+---
+title: Deep Agents 概述
+sidebarTitle: 概述
+description: 构建能够自主规划、使用子代理并利用文件系统处理复杂任务的智能体
+---
+
+构建由 LLM 驱动的智能体和应用的最简单方式——内置任务规划、用于上下文管理的文件系统、子代理生成和长期记忆功能。你可以使用 Deep Agents 处理任何任务，包括复杂的多步骤任务。
+
+我们将 `deepagents` 视为一个[智能体框架](/zh/oss/concepts/products#agent-harnesses-like-the-deep-agents-sdk)。它与其他智能体框架使用相同的核心工具调用循环，但配备了内置工具和功能。
+
+<Tip>
+  [LangSmith Engine](/zh/langsmith/engine) 可以检测你的 Deep Agents 追踪中的问题并提出修复建议。你可以直接在 Engine 标签页中提交包含建议修复的拉取请求。
+</Tip>
+
+:::python
+[`deepagents`](https://pypi.org/project/deepagents/) 是一个独立的库，构建在 [LangChain](/zh/oss/langchain/) 为智能体提供的核心构建模块之上。它使用 [LangGraph](/zh/oss/langgraph/) 运行时来实现持久化执行、流式传输、人机协同等功能。
+:::
+
+:::js
+[`deepagents`](https://www.npmjs.com/package/deepagents) 是一个独立的库，构建在 [LangChain](/zh/oss/langchain/) 为智能体提供的核心构建模块之上，并利用 [LangGraph](/zh/oss/langgraph/) 的工具在生产环境中运行智能体。
+:::
+
+[`deepagents` 仓库](https://github.com/langchain-ai/deepagents) 包含：
+- **Deep Agents SDK**：一个用于构建可处理任何任务的智能体的包
+- [**Deep Agents Code**](/zh/oss/deepagents/code)：基于 Deep Agents SDK 构建的终端编码智能体
+- [**ACP 集成**](/zh/oss/deepagents/acp)：一个 Agent 客户端协议连接器，用于在 Zed 等代码编辑器中使用 Deep Agents
+
+[LangChain](/zh/oss/langchain/) 是为你的智能体提供核心构建块的框架。要了解 LangChain、LangGraph 和 Deep Agents 之间的区别，请参阅[框架、运行时而智能体框架](/zh/oss/concepts/products)。要查看与 Anthropic 框架的并排对比，请参阅 [Deep Agents 对比 Claude Agent SDK](/zh/oss/deepagents/comparison)。
+
+## <Icon icon="wand" /> 创建一个 Deep Agent
+
+:::python
+<Tabs>
+    <Tab title="Google">
+        ```python
+        # pip install -qU deepagents langchain-google-genai
+        from deepagents import create_deep_agent
+
+        def get_weather(city: str) -> str:
+            """Get weather for a given city."""
+            return f"It's always sunny in {city}!"
+
+        agent = create_deep_agent(
+            model="google_genai:gemini-3.5-flash",
+            tools=[get_weather],
+            system_prompt="You are a helpful assistant",
+        )
+
+        # Run the agent
+        agent.invoke(
+            {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+        )
+        ```
+    </Tab>
+    <Tab title="OpenAI">
+        ```python
+        # pip install -qU deepagents langchain-openai
+        from deepagents import create_deep_agent
+
+        def get_weather(city: str) -> str:
+            """Get weather for a given city."""
+            return f"It's always sunny in {city}!"
+
+        agent = create_deep_agent(
+            model="openai:gpt-5.4",
+            tools=[get_weather],
+            system_prompt="You are a helpful assistant",
+        )
+
+        # Run the agent
+        agent.invoke(
+            {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+        )
+        ```
+    </Tab>
+    <Tab title="Anthropic">
+        ```python
+        # pip install -qU deepagents langchain-anthropic
+        from deepagents import create_deep_agent
+
+        def get_weather(city: str) -> str:
+            """Get weather for a given city."""
+            return f"It's always sunny in {city}!"
+
+        agent = create_deep_agent(
+            model="anthropic:claude-sonnet-4-6",
+            tools=[get_weather],
+            system_prompt="You are a helpful assistant",
+        )
+
+        # Run the agent
+        agent.invoke(
+            {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+        )
+        ```
+    </Tab>
+    <Tab title="OpenRouter">
+        ```python
+        # pip install -qU deepagents langchain-openrouter
+        from deepagents import create_deep_agent
+
+        def get_weather(city: str) -> str:
+            """Get weather for a given city."""
+            return f"It's always sunny in {city}!"
+
+        agent = create_deep_agent(
+            model="openrouter:anthropic/claude-sonnet-4-6",
+            tools=[get_weather],
+            system_prompt="You are a helpful assistant",
+        )
+
+        # Run the agent
+        agent.invoke(
+            {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+        )
+        ```
+    </Tab>
+    <Tab title="Fireworks">
+        ```python
+        # pip install -qU deepagents langchain-fireworks
+        from deepagents import create_deep_agent
+
+        def get_weather(city: str) -> str:
+            """Get weather for a given city."""
+            return f"It's always sunny in {city}!"
+
+        agent = create_deep_agent(
+            model="fireworks:accounts/fireworks/models/qwen3p5-397b-a17b",
+            tools=[get_weather],
+            system_prompt="You are a helpful assistant",
+        )
+
+        # Run the agent
+        agent.invoke(
+            {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+        )
+        ```
+    </Tab>
+    <Tab title="Baseten">
+        ```python
+        # pip install -qU deepagents langchain-baseten
+        from deepagents import create_deep_agent
+
+        def get_weather(city: str) -> str:
+            """Get weather for a given city."""
+            return f"It's always sunny in {city}!"
+
+        agent = create_deep_agent(
+            model="baseten:zai-org/GLM-5",
+            tools=[get_weather],
+            system_prompt="You are a helpful assistant",
+        )
+
+        # Run the agent
+        agent.invoke(
+            {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+        )
+        ```
+    </Tab>
+    <Tab title="Ollama">
+        ```python
+        # pip install -qU deepagents langchain-ollama
+        from deepagents import create_deep_agent
+
+        def get_weather(city: str) -> str:
+            """Get weather for a given city."""
+            return f"It's always sunny in {city}!"
+
+        agent = create_deep_agent(
+            model="ollama:devstral-2",
+            tools=[get_weather],
+            system_prompt="You are a helpful assistant",
+        )
+
+        # Run the agent
+        agent.invoke(
+            {"messages": [{"role": "user", "content": "what is the weather in sf"}]}
+        )
+        ```
+    </Tab>
+</Tabs>
+:::
+
+:::js
+```ts
+import * as z from "zod";
+// npm install deepagents langchain @langchain/core
+import { createDeepAgent } from "deepagents";
+import { tool } from "langchain";
+
+const getWeather = tool(
+  ({ city }) => `It's always sunny in ${city}!`,
+  {
+    name: "get_weather",
+    description: "Get the weather for a given city",
+    schema: z.object({
+      city: z.string(),
+    }),
+  },
+);
+
+const agent = createDeepAgent({
+  tools: [getWeather],
+  systemPrompt: "You are a helpful assistant",
+});
+
+console.log(
+  await agent.invoke({
+    messages: [{ role: "user", content: "What's the weather in Tokyo?" }],
+  })
+);
+```
+:::
+
+请查看[快速入门](/zh/oss/deepagents/quickstart/)和[自定义指南](/zh/oss/deepagents/customization/)开始使用 Deep Agents 构建你自己的智能体和应用。
+
+<Tip>
+使用 [LangSmith](https://smith.langchain.com) 追踪请求、调试智能体行为并评估输出。按照[追踪快速入门](/zh/langsmith/trace-with-langchain)进行设置。当准备投入生产时，[部署到 LangSmith Cloud](/zh/langsmith/deploy-to-cloud) 以获得托管服务。
+</Tip>
+
+## 何时使用 Deep Agents
+
+当你希望构建具备以下能力的智能体时，使用 **Deep Agents SDK**：
+
+- **处理复杂的多步骤任务**——需要规划和分解
+- **管理大量上下文**——通过文件系统工具和[摘要](/zh/oss/deepagents/context-engineering#summarization)功能
+- **切换文件系统后端**——使用内存状态、本地磁盘、持久化存储、[沙箱](/zh/oss/deepagents/sandboxes)或[你自己的自定义后端](/zh/oss/deepagents/backends)
+- **执行 Shell 命令**——使用沙箱后端时的 `execute` 工具
+- **运行解释器代码**——通过[解释器](/zh/oss/deepagents/interpreters)实现工具组合、子代理编排和结构化数据转换
+- **委派工作**给专门的子代理以实现上下文隔离
+- **跨对话和线程持久化记忆**
+- **控制文件系统访问**——使用声明式[权限规则](/zh/oss/deepagents/permissions)限制智能体可以读取或写入的文件
+- **需要人工批准**敏感操作——通过[人机协同](/zh/oss/deepagents/human-in-the-loop)工作流
+- **使用任何模型**——[与提供商无关](/zh/oss/deepagents/models)，支持前沿模型和开放模型
+
+:::python
+对于构建更简单的智能体，可以考虑使用 LangChain 的 [`create_agent`](/zh/oss/langchain/agents) 或构建自定义的 [LangGraph](/zh/oss/langgraph/overview) 工作流。
+:::
+
+:::js
+对于构建更简单的智能体，可以考虑使用 LangChain 的 [`createAgent`](/zh/oss/langchain/agents) 或构建自定义的 [LangGraph](/zh/oss/langgraph/overview) 工作流。
+:::
+
+## 核心能力
+
+<Card title="规划和任务分解" icon="timeline">
+    Deep Agents 包含内置的 [`write_todos`](/zh/oss/langchain/middleware/built-in#to-do-list) 工具，使智能体能够将复杂任务分解为离散步骤、跟踪进度，并在新信息出现时调整计划。
+</Card>
+<Card title="上下文管理" icon="scissors">
+    文件系统工具（[`ls`](/zh/oss/deepagents/harness#virtual-filesystem-access)、[`read_file`](/zh/oss/deepagents/harness#virtual-filesystem-access)、[`write_file`](/zh/oss/deepagents/harness#virtual-filesystem-access)、[`edit_file`](/zh/oss/deepagents/harness#virtual-filesystem-access)）允许智能体将大量上下文卸载到内存或文件系统存储中，防止上下文窗口溢出，并支持处理可变长度的工具结果。当上下文窗口变长时，自动摘要功能会压缩较早的对话消息，使智能体在长时间会话中保持高效。
+</Card>
+<Card title="Shell 执行" icon="terminal">
+    当使用[沙箱后端](/zh/oss/deepagents/sandboxes)时，智能体获得 `execute` 工具来运行 Shell 命令，用于测试、构建、Git 操作和系统任务。沙箱后端提供隔离，使智能体能够执行代码而不会危及你的主机系统。
+</Card>
+<Card title="解释器" icon="code">
+    添加[解释器](/zh/oss/deepagents/interpreters)以在内存运行时中运行 JavaScript。解释器让智能体能够以编程方式组合工具、编排子代理以及转换结构化数据，无需完整的 Shell 环境。
+</Card>
+<Card title="可插拔的文件系统后端" icon="plug">
+    虚拟文件系统由[可插拔后端](/zh/oss/deepagents/backends)驱动，你可以根据用例进行切换。选择内存状态、本地磁盘、用于跨线程持久化的 LangGraph 存储、用于隔离代码执行的[沙箱](/zh/oss/deepagents/sandboxes)（Modal、Daytona、Deno），或通过复合路由组合多个后端。你也可以实现自己的自定义后端。
+</Card>
+<Card title="子代理生成" icon="users-group">
+    内置的 `task` 工具使智能体能够生成专门的子代理以实现上下文隔离。这使主智能体的上下文保持简洁，同时仍能深入处理特定的子任务。
+</Card>
+<Card title="长期记忆" icon="database">
+    使用 LangGraph 的[记忆存储](/zh/oss/langgraph/persistence#memory-store)为智能体扩展跨线程的持久化记忆。智能体可以保存和检索来自之前对话的信息。
+</Card>
+<Card title="文件系统权限" icon="lock">
+    声明[权限规则](/zh/oss/deepagents/permissions)来控制智能体可以读取或写入的文件和目录。子代理可以继承或覆盖父级的规则。
+</Card>
+<Card title="人机协同" icon="user-check">
+    使用 LangGraph 的中断功能配置敏感工具操作的[人工审批](/zh/oss/deepagents/human-in-the-loop)。控制在执行前哪些工具需要确认。
+</Card>
+<Card title="技能" icon="puzzle">
+    使用可复用的[技能](/zh/oss/deepagents/skills)扩展智能体，提供专门的工作流、领域知识和自定义指令。
+</Card>
+<Card title="智能默认值" icon="wand">
+    内置了经验丰富的系统提示词，教会模型如何有效使用工具——先规划再行动、验证工作、管理上下文。根据需要自定义或替换默认值。
+</Card>
+
+## 开始使用
+
+:::python
+<CardGroup cols={2}>
+    <Card title="快速入门" icon="rocket" href="/zh/oss/deepagents/quickstart">
+        构建你的第一个 Deep Agent
+    </Card>
+    <Card title="自定义" icon="adjustments" href="/zh/oss/deepagents/customization">
+        了解自定义选项
+    </Card>
+    <Card title="模型" icon="cpu" href="/zh/oss/deepagents/models">
+        配置模型和提供商
+    </Card>
+    <Card title="后端" icon="plug" href="/zh/oss/deepagents/backends">
+        选择并配置可插拔的文件系统后端
+    </Card>
+    <Card title="沙箱" icon="cube" href="/zh/oss/deepagents/sandboxes">
+        在隔离环境中执行代码
+    </Card>
+    <Card title="解释器" icon="code" href="/zh/oss/deepagents/interpreters">
+        在 QuickJS 中组合工具和转换数据
+    </Card>
+    <Card title="权限" icon="lock" href="/zh/oss/deepagents/permissions">
+        使用权限规则控制文件系统访问
+    </Card>
+    <Card title="人机协同" icon="user-check" href="/zh/oss/deepagents/human-in-the-loop">
+        为敏感操作配置审批
+    </Card>
+    <Card title="Code" icon="terminal" href="/zh/oss/deepagents/code/overview">
+        使用 Deep Agents Code
+    </Card>
+    <Card title="ACP" icon="plug-connected" href="/zh/oss/deepagents/acp">
+        通过 ACP 在代码编辑器中使用 Deep Agents
+    </Card>
+    <Card title="参考" icon="external-link" href="https://reference.langchain.com/python/deepagents/">
+        查看 `deepagents` API 参考
+    </Card>
+</CardGroup>
+:::
+
+:::js
+<CardGroup cols={2}>
+    <Card title="快速入门" icon="rocket" href="/zh/oss/deepagents/quickstart">
+        构建你的第一个 Deep Agent
+    </Card>
+    <Card title="自定义" icon="adjustments" href="/zh/oss/deepagents/customization">
+        了解自定义选项
+    </Card>
+    <Card title="模型" icon="cpu" href="/zh/oss/deepagents/models">
+        配置模型和提供商
+    </Card>
+    <Card title="后端" icon="plug" href="/zh/oss/deepagents/backends">
+        选择并配置可插拔的文件系统后端
+    </Card>
+    <Card title="解释器" icon="code" href="/zh/oss/deepagents/interpreters">
+        在 QuickJS 中组合工具和转换数据
+    </Card>
+    <Card title="权限" icon="lock" href="/zh/oss/deepagents/permissions">
+        使用权限规则控制文件系统访问
+    </Card>
+    <Card title="人机协同" icon="user-check" href="/zh/oss/deepagents/human-in-the-loop">
+        为敏感操作配置审批
+    </Card>
+    <Card title="Code" icon="terminal" href="/zh/oss/deepagents/code/overview">
+        使用 Deep Agents Code
+    </Card>
+    <Card title="参考" icon="external-link" href="https://reference.langchain.com/javascript/modules/deepagents.html">
+        查看 `deepagents` API 参考
+    </Card>
+</CardGroup>
+:::
