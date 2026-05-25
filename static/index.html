@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LangChain 中文文档</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0f; color: #e0e0e0; line-height: 1.6; min-height: 100vh; }
+  .container { max-width: 800px; margin: 0 auto; padding: 60px 24px; }
+  h1 { font-size: 2.5rem; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .subtitle { color: #888; font-size: 1.1rem; margin-bottom: 48px; }
+  .status { display: inline-flex; align-items: center; gap: 8px; background: #1a1a2e; padding: 8px 16px; border-radius: 20px; font-size: 0.9rem; margin-bottom: 40px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
+  .status-dot.live { background: #22c55e; }
+  .section { margin-bottom: 40px; }
+  .section-title { font-size: 1.3rem; font-weight: 600; color: #fff; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #1e1e2e; }
+  .links { display: grid; gap: 8px; }
+  .links a { color: #60a5fa; text-decoration: none; padding: 8px 12px; border-radius: 8px; transition: background 0.2s; }
+  .links a:hover { background: #1a1a2e; color: #93c5fd; }
+  .note { background: #1a1a2e; border-radius: 12px; padding: 20px; margin-top: 48px; font-size: 0.95rem; color: #aaa; }
+  .note a { color: #60a5fa; }
+  .note code { background: #111; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+  .badge { display: inline-block; background: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>LangChain 中文文档</h1>
+  <p class="subtitle">LangChain 开源框架与 LangSmith 平台的中文翻译文档</p>
+
+  <div class="status">
+    <span class="status-dot"></span>
+    站点正在构建中 · GitHub Actions 部署
+  </div>
+
+  <div class="section">
+    <div class="section-title">Deep Agents <span class="badge">已翻译 ✓</span></div>
+    <div class="links">
+      <a href="/langchain-docs-zh/zh/oss/deepagents/overview">概述</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/quickstart">快速入门</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/harness">Harness 能力</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/models">模型配置</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/customization">自定义</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/skills">技能</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/memory">记忆</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/backends">后端</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/sandboxes">沙箱</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/permissions">权限</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/human-in-the-loop">人机协同</a>
+      <a href="/langchain-docs-zh/zh/oss/deepagents/code/overview">Deep Agents Code</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">LangChain <span class="badge">待翻译</span></div>
+    <div class="links">
+      <a>概览（翻译中...）</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">LangGraph <span class="badge">待翻译</span></div>
+    <div class="links">
+      <a>概览（翻译中...）</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">LangSmith <span class="badge">待翻译</span></div>
+    <div class="links">
+      <a>概览（翻译中...）</a>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><strong>关于本站</strong></p>
+    <p>本站是 <a href="https://github.com/langchain-ai/docs">LangChain 官方文档</a> 的中文翻译 Fork。当前使用 Mintlify Cloud 进行完整渲染，并尝试通过 GitHub Actions + wget 部署静态版本到 GitHub Pages。</p>
+    <br>
+    <p><strong>同步上游</strong></p>
+    <p><code>git pull upstream main</code> — 拉取官方更新<br>
+    <code>python scripts/sync_tracker.py --diff</code> — 查看变更<br>
+    <code>python scripts/sync_tracker.py --pending</code> — 查看待翻译</p>
+    <br>
+    <p><a href="https://github.com/wfvuewai/langchain-docs-zh">GitHub 仓库</a></p>
+  </div>
+</div>
+</body>
+</html>

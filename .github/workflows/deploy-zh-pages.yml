@@ -32,47 +32,46 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --all-groups
 
-      - name: Install Mintlify CLI
-        run: npm install -g mint@4.2.406
-
-      - name: Install wget
-        run: sudo apt-get update && sudo apt-get install -y wget
-
       - name: Build Chinese docs
-        run: uv run python scripts/build_zh.py
+        run: |
+          mkdir -p deploy-site
+          uv run python scripts/build_zh.py
+          cp -r build/zh deploy-site/zh
+          cp -r build/images deploy-site/images
+          cp -r build/fonts deploy-site/fonts
+          cp build/docs.json deploy-site/ 2>/dev/null || true
 
-      - name: Start Mintlify dev server and capture static site
+      - name: Start Mintlify server and capture
+        timeout-minutes: 20
         run: |
           cd build
-          mint dev --port 3000 > /tmp/mint-dev.log 2>&1 &
+          mint dev --port 3456 &
           MINT_PID=$!
-          echo "Mintlify PID: $MINT_PID"
-          echo "Waiting for mint dev to be ready..."
-          for i in $(seq 1 60); do
-            if curl -s -o /dev/null -w "" http://localhost:3000/ 2>/dev/null; then
-              echo "Server ready after ${i}s"
+          echo "Server PID: $MINT_PID, waiting up to 120s..."
+          for i in $(seq 1 120); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3456/ 2>/dev/null)
+            if [ "$CODE" != "000" ]; then
+              echo "Server responded with $CODE after ${i}s"
               break
             fi
             sleep 1
           done
-          mkdir -p ../site
-          cd ../site
-          wget --mirror --page-requisites --adjust-extension --convert-links \
-               --no-parent --wait=0.1 --limit-rate=500K \
-               --directory-prefix=. \
-               http://localhost:3000/ 2>&1
-          WGET_EXIT=$?
+          cd ..
+          wget --recursive --page-requisites --adjust-extension --convert-links \
+               --no-parent --timeout=30 --tries=3 \
+               --directory-prefix=deploy-site \
+               http://localhost:3456/ 2>&1 || true
           kill $MINT_PID 2>/dev/null || true
-          mv localhost:3000/* . 2>/dev/null || true
-          rmdir localhost:3000 2>/dev/null || true
+          mv deploy-site/localhost:3456/* deploy-site/ 2>/dev/null || true
+          rm -rf deploy-site/localhost:3456 2>/dev/null || true
           echo "=== Downloaded files ==="
-          find . -type f | head -30
-          echo "=== Total files: $(find . -type f | wc -l) ==="
+          find deploy-site -type f | wc -l
+          ls deploy-site/ | head -10
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: deploy-site
 
   deploy:
     needs: build
