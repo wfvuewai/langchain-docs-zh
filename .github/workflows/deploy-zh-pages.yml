@@ -44,19 +44,30 @@ jobs:
       - name: Start Mintlify dev server and capture static site
         run: |
           cd build
-          mint dev --port 3000 &
+          mint dev --port 3000 > /tmp/mint-dev.log 2>&1 &
           MINT_PID=$!
           echo "Mintlify PID: $MINT_PID"
-          sleep 15
+          echo "Waiting for mint dev to be ready..."
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null -w "" http://localhost:3000/ 2>/dev/null; then
+              echo "Server ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
           mkdir -p ../site
           cd ../site
           wget --mirror --page-requisites --adjust-extension --convert-links \
                --no-parent --wait=0.1 --limit-rate=500K \
                --directory-prefix=. \
-               http://localhost:3000/ 2>&1 | tail -20
+               http://localhost:3000/ 2>&1
+          WGET_EXIT=$?
           kill $MINT_PID 2>/dev/null || true
           mv localhost:3000/* . 2>/dev/null || true
-          find . -maxdepth 1 -name "*.html" -o -name "*.js" -o -name "*.css" -o -name "*.json" | head -20
+          rmdir localhost:3000 2>/dev/null || true
+          echo "=== Downloaded files ==="
+          find . -type f | head -30
+          echo "=== Total files: $(find . -type f | wc -l) ==="
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
