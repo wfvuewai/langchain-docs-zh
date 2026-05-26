@@ -39,7 +39,7 @@ jobs:
         run: npm install -g mint@latest
 
       - name: Export static site with mint export
-        timeout-minutes: 120
+        timeout-minutes: 360
         run: |
           cd build
           echo "=== Starting mint export at $(date) ==="
