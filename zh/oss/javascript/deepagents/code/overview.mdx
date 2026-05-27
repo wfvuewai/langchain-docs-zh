@@ -1,0 +1,426 @@
+---
+title: Deep Agents Code
+sidebarTitle: 概述
+description: 基于 Deep Agents SDK 构建的终端编码智能体
+---
+
+Deep Agents Code (`dcode`) 是一个基于 [Deep Agents SDK](/zh/oss/deepagents/quickstart) 构建的开源编码智能体。它可与任何支持工具调用的 LLM 配合使用，并允许你在不同输入之间切换 LLM。它保留对话中学习到的持久记忆，跨会话维护上下文，使用可自定义的技能，并通过审批控制执行代码。
+
+## 快速开始
+
+<Steps>
+
+    <Step title="安装并启动" icon="terminal">
+        OpenAI、Anthropic 和 Google 默认已安装。其他提供商（Ollama、Groq、xAI 等）可作为可选扩展安装——详见[提供商](/zh/oss/deepagents/code/providers)。
+
+        <CodeGroup>
+            ```bash Script
+            curl -LsSf https://langch.in/dcode | bash
+            ```
+
+            ```bash 可选扩展
+            # 示例：安装 Fireworks 和 Nvidia 提供商
+            DEEPAGENTS_EXTRAS="fireworks,nvidia" curl -LsSf https://langch.in/dcode | bash
+
+            # OpenAI、Anthropic 和 Gemini 默认包含
+            # 查看所有扩展：
+            # https://docs.langchain.com/oss/python/deepagents/code/providers
+            ```
+
+            ```bash uv
+            # 示例：安装 Fireworks 和 Nvidia 提供商
+            uv tool install 'deepagents-code[fireworks,nvidia]'
+
+            # OpenAI、Anthropic 和 Gemini 默认包含
+            # 查看所有扩展：
+            # https://docs.langchain.com/oss/python/deepagents/code/providers
+            ```
+        </CodeGroup>
+
+        ```bash
+        dcode
+        ```
+        ![Deep Agents Code](/oss/images/deepagents/deepagents-cli.png)
+
+    </Step>
+
+    <Step title="添加提供商凭据" icon="key">
+        Deep Agents Code 可与任何支持工具调用的 LLM 配合使用。使用 `/auth` 命令为你选择的提供商设置 API 密钥——完整流程和存储详情请参阅[提供商凭据](/zh/oss/deepagents/code/configuration#provider-credentials)。
+
+        有关其他提供商和无头运行，请参阅[提供商](/zh/oss/deepagents/code/providers)。
+
+        <Note>
+            网络搜索使用 [Tavily](https://tavily.com)，**不**通过 `/auth` 配置。如果你在启动时看到"Web search disabled — `TAVILY_API_KEY` is not set"，请将 `TAVILY_API_KEY=tvly-...` 添加到 `~/.deepagents/.env` 并运行 `/reload`（或重启）。详见[使用 Tavily 启用网络搜索](/zh/oss/deepagents/code/configuration#enable-web-search-with-tavily)。
+        </Note>
+    </Step>
+
+    <Step title="给智能体分配任务" icon="message">
+        ```txt
+        创建一个打印 "Hello, World!" 的 Python 脚本
+        ```
+
+        智能体会解析查询并在修改文件前，通过差异对比向你提出更改建议以供审批。如有需要，它可以运行 shell 命令来测试代码、检查文档或搜索网络获取最新信息。
+    </Step>
+
+    <Step title="启用追踪（可选）" icon="chart-dots">
+        要在 LangSmith 中记录智能体操作、工具调用和决策，请将以下内容添加到 `~/.deepagents/.env` 或在 shell 中导出变量：
+
+        ```bash title="~/.deepagents/.env"
+        LANGSMITH_TRACING=true
+        LANGSMITH_API_KEY=lsv2_...
+        LANGSMITH_PROJECT=optional-project-name  # 指定项目名称，默认为 "deepagents-code"
+        ```
+
+        更多详情和用法，请参阅[使用 LangSmith 追踪](#trace-with-langsmith)。
+    </Step>
+</Steps>
+
+<Note>
+    Deep Agents Code 在 Windows 上不受官方支持。Windows 用户可尝试在[适用于 Linux 的 Windows 子系统（WSL）](https://learn.microsoft.com/en-us/windows/wsl/install)下运行。
+</Note>
+
+## 功能
+
+Deep Agents Code 具有以下内置功能：
+
+* <Icon icon="file" size={16} /> **文件操作** - 使用工具读取、写入和编辑文件，使智能体能够管理和修改代码及文档。
+* <Icon icon="terminal" size={16} /> **Shell 执行** - 执行命令以运行测试、构建项目、管理依赖项和与版本控制交互。
+* <Icon icon="cloud" size={16} /> **[远程沙箱](/zh/oss/deepagents/code/remote-sandboxes)** - 在 LangSmith、Daytona、Modal、Runloop 或 AgentCore 中运行智能体工具，而非本地机器。链接页面涵盖提供商安装、凭据、沙箱标志（`--sandbox`、`--sandbox-id`、`--sandbox-setup`）和设置脚本。
+* <Icon icon="search" size={16} /> **网络搜索** - 搜索网络获取最新信息和文档。需要在 [`TAVILY_API_KEY`](/zh/oss/deepagents/code/configuration#enable-web-search-with-tavily) 中设置 Tavily API 密钥。
+* <Icon icon="globe" size={16} /> **HTTP 请求** - 向 API 和外部服务发起 HTTP 请求，用于数据获取和集成任务。
+* <Icon icon="list-check" size={16} /> **任务规划与跟踪** - 将复杂任务分解为离散步骤并跟踪进度。
+* <Icon icon="users" size={16} /> **[子智能体](/zh/oss/deepagents/code/subagents)** - 使用 `task` 工具委派工作。在 Deep Agents Code 中，将自定义子智能体定义为 `AGENTS.md` 文件；链接页面涵盖了路径、前置元数据和示例。
+* <Icon icon="brain" size={16} /> **[记忆存储与检索](/zh/oss/deepagents/code/memory-and-skills#memory)** - 跨会话存储和检索信息，使智能体能够记住项目约定和学到的模式。
+* <Icon icon="arrows-minimize" size={16} /> **上下文压缩与卸除** - 对较早的对话消息进行摘要，并将原始消息卸除到存储中，在长时间会话中释放上下文窗口空间。
+* <Icon icon="user" size={16} /> **人在回路中** - 要求人工批准敏感的工具操作。
+* <Icon icon="puzzle" size={16} /> **[技能](/zh/oss/deepagents/code/memory-and-skills#skills)** - 使用自定义专业知识和指令扩展智能体能力。
+* <Icon icon="plug" size={16} /> **[MCP 工具](/zh/oss/deepagents/code/mcp-tools)** - 从 [Model Context Protocol](https://modelcontextprotocol.io/) 服务器加载外部工具。
+* <Icon icon="chart-dots" size={16} /> **[追踪](/zh/oss/deepagents/code/overview#trace-with-langsmith)** - 在 LangSmith 中追踪智能体操作，用于可观测性和调试。
+
+<Accordion title="内置工具完整列表">
+    ## 内置工具
+
+    智能体附带以下内置工具，无需配置即可使用：
+
+    | 工具 | 描述 | 人在回路中 |
+    |------|------|-----------|
+    | `ls` | 列出文件和目录 | - |
+    | `read_file` | 读取文件内容；部分模型支持多模态内容 | - |
+    | `write_file` | 创建或覆盖文件 | 需要<sup>1</sup> |
+    | `edit_file` | 对现有文件进行定向编辑 | 需要<sup>1</sup> |
+    | `glob` | 查找匹配模式的文件 | - |
+    | `grep` | 跨文件搜索文本模式 | - |
+    | `execute` | 在本地或远程沙箱中执行 shell 命令 | 需要<sup>1</sup> |
+    | `web_search` | 使用 Tavily 搜索网络（需要 `TAVILY_API_KEY`——参见[启用网络搜索](/zh/oss/deepagents/code/configuration#enable-web-search-with-tavily)） | 需要<sup>1</sup> |
+    | `fetch_url` | 获取网页并转换为 markdown | 需要<sup>1</sup> |
+    | `task` | 委派工作给子智能体进行并行执行 | 需要<sup>1</sup> |
+    | `ask_user` | 向用户提出自由形式或多选问题 | - |
+    | `compact_conversation` | 摘要较早消息，将原始消息卸除到后端存储，并在上下文中替换为摘要 | 混合<sup>2</sup> |
+    | `write_todos` | 为复杂工作创建和管理任务列表 | - |
+
+    <sup>1</sup>：潜在破坏性操作在执行前需要用户批准。要绕过人工批准，你可以切换自动批准（shift+tab）或使用以下选项启动：
+
+    ```bash
+    dcode -y
+    # 或
+    dcode --auto-approve
+    ```
+
+    <Note>
+        在非交互模式下运行 Deep Agents Code（通过 `-n` 或管道 stdin）时，即使使用 `-y`/`--auto-approve`，shell 执行默认也是禁用的。使用 `-S`/`--shell-allow-list` 来允许特定命令（例如 `-S "pytest,git,make"`），`recommended` 使用安全默认值，或 `all` 允许任何命令。也支持 `DEEPAGENTS_CODE_SHELL_ALLOW_LIST` 环境变量。详见[非交互模式与管道](#non-interactive-mode-and-piping)。
+    </Note>
+
+    <sup>2</sup>：当令牌使用超过模型感知阈值时，Deep Agents Code 会在后台自动卸除对话。卸除操作通过 LLM 对较早消息进行摘要，并将原始消息弹出到存储（`/conversation_history/{thread_id}.md`），在上下文中替换为摘要。智能体在需要时仍可从卸除的文件中检索完整历史记录。`compact_conversation` 工具让智能体（或你）按需触发卸除。当作为工具调用时，默认需要用户批准。
+</Accordion>
+
+<Tip>
+    [观看演示视频](https://youtu.be/IrnacLa9PJc?si=3yUnPbxnm2yaqVQb)了解 Deep Agents Code 的工作方式。
+</Tip>
+
+## 命令参考
+
+```bash
+# 使用特定的智能体配置
+dcode --agent mybot
+
+# 使用特定模型（provider:model 格式或自动检测）
+dcode --model anthropic:claude-opus-4-7
+dcode --model gpt-5.5
+
+# 自动批准工具使用（跳过人在回路提示）
+dcode -y
+
+# 列出目录内容，然后将目录摘要作为第一个提示——命令先运行，然后提交提示
+# 提示无权访问命令输出
+dcode --startup-cmd "ls -la" -m "总结此目录的内容"
+
+# 非交互模式带启动命令：任务运行前显示 git 状态
+# 任务无权访问命令输出
+dcode --startup-cmd "git diff --stat" -n "审查这些更改"
+```
+
+<AccordionGroup>
+    <Accordion title="命令行选项" icon="flag">
+        | 选项 | 描述 |
+        |------|------|
+        | `-a`, `--agent NAME` | 使用具有独立记忆的命名智能体。覆盖 `config.toml` 中的 `[agents].recent`。默认值：`agent`（如果设置了 `[agents].recent`，则为最近使用的智能体） |
+        | `-M`, `--model MODEL` | 使用特定模型（`provider:model`） |
+        | `--model-params JSON` | 以 JSON 字符串形式传递给模型的额外 kwargs（例如 `'{"temperature": 0.7}'`） |
+        | `--default-model [MODEL]` | 设置默认模型 |
+        | `--clear-default-model` | 清除默认模型 |
+        | `-r`, `--resume [ID]` | 恢复会话：`-r` 恢复最近一个，`-r <ID>` 恢复特定线程 |
+        | `-m`, `--message TEXT` | 会话启动时自动提交的初始提示（交互模式） |
+        | `--skill NAME` | 启动时调用技能 |
+        | `--startup-cmd CMD` | 启动时运行的 shell 命令，在第一个提示之前。输出会显示在记录中供你参考，但**不会**添加到智能体的消息历史中。要将命令输出传递给智能体，请通过 stdin 管道输入（例如 `git diff \| dcode -n "审查这些更改"`）。非零退出和超时会发出警告但不会中止；非交互模式应用 60 秒超时。 |
+        | `-n`, `--non-interactive TEXT` | 以非交互模式运行单个任务然后退出。除非设置了 `--shell-allow-list`，否则 shell 处于禁用状态 |
+        | `--max-turns N` | 限制非交互模式下的智能体轮次。超出时以退出码 124 退出。需要 `-n` 或管道 stdin。参见[使用 `--max-turns` 限制轮次](#non-interactive-mode-and-piping) |
+        | `--timeout SECONDS` | 非交互模式的硬性挂钟超时。超出时以退出码 124 退出。需要 `-n` 或管道 stdin。参见[使用 `--timeout` 限制挂钟时间](#non-interactive-mode-and-piping) |
+        | `-q`, `--quiet` | 用于管道的简洁输出——只有智能体的响应输出到 stdout。需要 `-n` 或管道 stdin |
+        | `--no-stream` | 缓存完整响应并一次性写入 stdout，而非流式输出。需要 `-n` 或管道 stdin |
+        | `--stdin` | 显式从 stdin 读取输入而非自动检测。当 stdin 不可用或是 TTY 时明确报错 |
+        | `-y`, `--auto-approve` | 自动批准所有工具调用而不提示（禁用人在回路中）。在交互会话中使用 `Shift+Tab` 切换 |
+        | `-S`, `--shell-allow-list LIST` | 逗号分隔的自动批准 shell 命令，`'recommended'` 使用安全默认值，或 `'all'` 允许任何命令。适用于 `-n` 和交互模式 |
+        | `--json` | 从管理子命令（`agents`、`threads`、`skills`、`update`）输出机器可读的 JSON。输出信封：`{"schema_version": 1, "command": "...", "data": ...}` |
+        | `--sandbox TYPE` | 用于代码执行的远程沙箱：`none`（默认）、`langsmith`、`agentcore`、`modal`、`daytona`、`runloop`。LangSmith 默认包含；AgentCore/Modal/Daytona/Runloop 需要额外安装 |
+        | `--sandbox-id ID` | 重用现有沙箱（跳过创建和清理） |
+        | `--sandbox-setup PATH` | 创建后在沙箱中运行的设置脚本路径 |
+        | `--mcp-config PATH` | 添加显式 MCP 配置作为最高优先级源（与自动发现的配置合并） |
+        | `--no-mcp` | 禁用所有 MCP 工具加载 |
+        | `--trust-project-mcp` | 信任项目级别的 MCP 配置中的 stdio 服务器（跳过审批提示） |
+        | `--profile-override JSON` | 以 JSON 字符串形式覆盖模型配置字段（例如 `'{"max_input_tokens": 4096}'`）。在配置文件配置文件覆盖之上合并 |
+        | `--acp` | 以 ACP 服务器模式运行（通过 stdio），而非启动交互 UI |
+        | `-v`, `--version` | 显示版本 |
+        | `-h`, `--help` | 显示帮助 |
+    </Accordion>
+
+    <Accordion title="CLI 命令" icon="terminal">
+        | 命令 | 描述 |
+        |------|------|
+        | `dcode help` | 显示帮助 |
+        | `dcode agents list` | 列出所有智能体（别名：`ls`） |
+        | `dcode agents reset --agent NAME` | 清除智能体记忆并重置为默认值。支持 `--dry-run` |
+        | `dcode agents reset --agent NAME --target SOURCE` | 从另一个智能体复制记忆 |
+        | `dcode update` | 检查并安装 Deep Agents Code 更新 |
+        | `dcode skills list [--project]` | 列出所有技能（别名：`ls`） |
+        | `dcode skills create NAME [--project]` | 使用模板 `SKILL.md` 创建新技能。幂等——重新创建已有技能会打印信息性消息而非错误 |
+        | `dcode skills info NAME [--project]` | 显示技能的详细信息 |
+        | `dcode skills delete NAME [--project] [-f]` | 删除技能及其内容。支持 `--dry-run` |
+        | `dcode threads list [--agent NAME] [--limit N]` | 列出会话（别名：`ls`）。默认限制：20。`-n` 是 `--limit` 的短标志。附加标志：`--sort {created,updated}`、`--branch TEXT`（按 git 分支过滤）、`-v`/`--verbose`（显示所有列，包括分支、创建时间和初始提示）、`-r`/`--relative`（相对时间戳） |
+        | `dcode threads delete ID` | 删除会话。支持 `--dry-run` |
+        | `dcode mcp login NAME [--config PATH]` | 为标记为 `auth: "oauth"` 的 MCP 服务器运行 OAuth 登录流程。参见 [MCP 工具](/zh/oss/deepagents/code/mcp-tools#oauth-login) |
+
+        所有管理子命令均支持 `--json` 以输出机器可读的格式。详见[命令行选项](#command-line-options)。
+
+        破坏性命令（`agents reset`、`skills delete`、`threads delete`）支持 `--dry-run` 来预览将要发生的变化而不实际执行。在 JSON 模式下，`--dry-run` 返回相同的信封并带有 `dry_run: true` 字段。
+    </Accordion>
+</AccordionGroup>
+
+## 配置
+
+完整参考——包括 `config.toml` 模式、提供商参数、配置文件覆盖和钩子配置——请参阅[配置](/zh/oss/deepagents/code/configuration)。
+
+Deep Agents Code 将所有配置存储在 `~/.deepagents/` 下。在该目录中，每个智能体都有自己的子目录（默认：`agent`）：
+
+| 路径 | 用途 |
+|------|------|
+| `~/.deepagents/config.toml` | 模型和智能体默认值、提供商设置、构造函数参数、配置文件覆盖、主题、更新设置、MCP 信任存储 |
+| `~/.deepagents/.env` | 全局 API 密钥和密钥。参见[配置](/zh/oss/deepagents/code/configuration#environment-variables) |
+| `~/.deepagents/hooks.json` | 生命周期事件钩子（会话开始/结束、任务完成等） |
+| `~/.deepagents/<agent_name>/` | 按智能体划分的记忆、技能和对话线程 |
+| `.deepagents/`（项目根目录） | 在 git 仓库内运行时加载的项目特定记忆和技能 |
+
+```bash
+# 列出所有已配置的智能体
+dcode agents list
+```
+
+## 交互模式
+
+就像在聊天界面中一样自然地输入。智能体将使用其内置工具、技能和记忆来帮助你完成任务。
+
+<AccordionGroup>
+    <Accordion title="斜杠命令" icon="slash">
+        在 Deep Agents Code 会话中使用以下命令：
+
+        - `/model` - 切换模型或打开交互式模型选择器。
+        - `/agents` - 在预先配置的智能体之间热切换，无需重新启动。详见[命令参考](/zh/oss/deepagents/code/overview#command-reference)
+        - `/auth` - 管理存储的模型提供商 API 密钥。详见[提供商凭据](/zh/oss/deepagents/code/configuration#provider-credentials)
+        - `/remember [context]` - 回顾对话并更新记忆和技能。可选传递额外上下文
+        - `/skill:<name> [args]` - 按名称直接调用技能。技能的 `SKILL.md` 指令连同你提供的任何参数一起注入到提示中
+        - `/skill-creator [args]` - 创建有效智能体技能的指南
+        - `/offload`（别名 `/compact`）- 通过将消息卸除到存储并放置摘要占位符来释放上下文窗口空间。智能体在需要时可以从卸除的文件中检索完整历史记录
+        - `/tokens` - 显示当前上下文窗口令牌使用情况明细
+        - `/clear` - 清除对话历史并开始新线程
+        - `/threads` - 浏览和恢复之前的对话线程
+        - `/mcp` - 显示活动的 MCP 服务器和工具
+        - `/reload` - 重新读取 `.env` 文件、刷新配置并重新发现技能，无需重启。对话状态保持不变。参见 [`DEEPAGENTS_CODE_` 前缀](/zh/oss/deepagents/code/configuration#deepagents_code_-prefix)了解覆盖行为
+        - `/theme` - 打开交互式主题选择器以切换颜色主题。内置主题可用，加上任何[用户定义的主题](/zh/oss/deepagents/code/configuration#themes)
+        - `/update` - 检查并内联安装 Deep Agents Code 更新。检测你的安装方法（uv、Homebrew、pip）并运行相应的升级命令
+        - `/auto-update` - 开启或关闭自动更新
+        - `/trace` - 在 LangSmith 中打开当前线程（需要 `LANGSMITH_API_KEY`）
+        - `/editor` - 在外部编辑器中打开当前提示（`$VISUAL` / `$EDITOR`）。参见[外部编辑器](/zh/oss/deepagents/code/configuration#external-editor)
+        - `/changelog` - 在浏览器中打开 Deep Agents Code 更新日志
+        - `/docs` - 在浏览器中打开文档
+        - `/feedback` - 打开 GitHub Issues 页面以提交错误报告或功能请求
+        - `/version` - 显示已安装的 `deepagents-code` 和 SDK 版本
+        - `/help` - 显示帮助和可用命令
+        - `/quit` - 退出 Deep Agents Code
+    </Accordion>
+
+    <Accordion title="Shell 命令" icon="prompt">
+        输入 `!` 进入 shell 模式，然后输入你的命令。
+
+        ```bash
+        git status
+        npm test
+        ls -la
+        ```
+    </Accordion>
+
+    <Accordion title="键盘快捷键" icon="keyboard">
+        **通用**
+
+        | 快捷键 | 操作 |
+        |-|-|
+        | `Enter` | 提交提示 |
+        | `Shift+Enter`、`Ctrl+J`、`Alt+Enter` 或 `Ctrl+Enter` | 插入换行 |
+        | `Ctrl+A` | 选择输入中的所有文本 |
+        | `@filename` | 自动补全文件并注入内容 |
+        | `Shift+Tab` 或 `Ctrl+T` | 切换自动批准 |
+        | `Ctrl+U` | 删除到行首 |
+        | `Ctrl+X` | 在外部编辑器中打开提示 |
+        | `Ctrl+O` | 展开/折叠最近的工具输出 |
+        | `Escape` | 中断当前操作 |
+        | `Ctrl+C` | 中断或退出 |
+        | `Ctrl+D` | 退出 |
+    </Accordion>
+</AccordionGroup>
+
+## 非交互模式与管道
+
+使用 `-n` 运行单个任务而不启动交互 UI：
+
+```bash
+dcode -n "编写一个打印 hello world 的 Python 脚本"
+```
+
+你也可以通过 stdin 管道输入。当输入被管道传递时，Deep Agents Code 自动以非交互模式运行：
+
+```bash
+echo "解释这段代码" | dcode
+cat error.log | dcode -n "是什么导致了此错误？"
+git diff | dcode -n "审查这些更改"
+git diff | dcode --skill code-review -n '总结更改'
+```
+
+当你将管道输入与 `-n` 或 `-m` 结合使用时，管道内容首先出现，然后是传递给标志的文本。
+
+<Note>
+    管道输入的最大大小为 10 MiB。
+</Note>
+
+Shell 执行在非交互模式下默认禁用。使用 `-S`/`--shell-allow-list` 启用特定命令（例如 `-S "pytest,git,make"`），`recommended` 使用安全默认值，或 `all` 允许任何命令。
+
+<AccordionGroup>
+    <Accordion title="使用 `--max-turns` 限制轮次" icon="gauge">
+        CI/CD 管道中长期运行或行为异常的智能体可能会无限循环。`--max-turns N` 为操作员提供了硬性上限，无需接触 SDK 内部：
+
+        ```bash
+        dcode -n "修复失败的测试" --max-turns 10
+        ```
+
+        `N` 必须是正整数，并覆盖内部安全默认值（否则会限制失控循环）。当预算超时时以退出码 124 退出（匹配 GNU `timeout`），因此 CI 可以区分预算超时和一般故障。需要 `-n` 或管道 stdin；否则以退出码 2 退出。
+
+        如需基于时间的限制替代（或补充）轮次限制，请参阅[使用 `--timeout` 限制挂钟时间](#non-interactive-mode-and-piping)。
+    </Accordion>
+
+    <Accordion title="使用 `--timeout` 限制挂钟时间" icon="clock">
+        `--timeout SECONDS` 对非交互运行强制执行硬性挂钟限制。它通过基于时间的预算补充了 `--max-turns`（轮次计数）——无论哪个限制先达到，都会取消智能体。
+
+        ```bash
+        # 如果任务耗时超过 2 分钟，在 CI 中快速失败
+        dcode -n "运行测试套件并总结失败原因" --timeout 120
+
+        # 与 --max-turns 结合——无论哪个限制先达到，都会停止智能体
+        dcode -n "重构认证模块" --timeout 300 --max-turns 20
+        ```
+
+        到期时，智能体被取消，进程以退出码 124 退出，与 `--max-turns` 使用的退出码相同，因此 CI 可以统一处理两种预算超时。需要 `-n` 或管道 stdin；否则以退出码 2 退出。
+    </Accordion>
+
+    <Accordion title="简洁输出与缓冲" icon="buffer">
+        使用 `-q` 获得适合管道传递到其他命令的简洁输出，使用 `--no-stream` 在写入 stdout 之前缓冲完整响应（而非流式输出）：
+
+        ```bash
+        dcode -n "生成 Python 项目的 .gitignore" -q > .gitignore
+        dcode -n "列出依赖项" -q --no-stream | sort
+        ```
+
+        在非交互模式下，智能体会被指示做出合理假设并自主推进，而不是提出澄清问题。它也会优先使用非交互式命令变体（例如 `npm init -y`、`apt-get install -y`）。
+    </Accordion>
+
+    <Accordion title="Shell 执行示例" icon="shield-check">
+        ```bash
+        # 允许特定命令（根据列表验证）
+        dcode -n "运行测试并修复失败" -S "pytest,git,make"
+
+        # 使用精选的安全命令列表
+        dcode -n "构建项目" -S recommended
+
+        # 允许任何 shell 命令
+        dcode -n "修复构建" -S all
+        ```
+    </Accordion>
+</AccordionGroup>
+
+<Warning>
+    **谨慎使用。**
+
+    `-S all`（或 `--shell-allow-list all`）允许智能体执行任意 shell 命令，无需人工确认。
+</Warning>
+
+## 使用 LangSmith 追踪
+
+启用 [LangSmith](https://smith.langchain.com) 追踪，在 LangSmith 项目中查看智能体操作、工具调用和决策。
+
+将追踪密钥添加到 `~/.deepagents/.env`，这样无需在每个 shell 中导出即可在每次会话中启用追踪：
+
+```bash title="~/.deepagents/.env"
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...
+LANGSMITH_PROJECT=optional-project-name  # 指定项目名称，默认为 "deepagents-code"
+```
+
+要为特定项目覆盖，请将相同的密钥添加到项目目录中的 `.env`。参见[环境变量](/zh/oss/deepagents/code/configuration#environment-variables)了解完整的加载顺序。
+
+如果你愿意，也可以将这些设置为 shell 环境变量。Shell 导出总是优先于 `.env` 值，因此这对于临时覆盖或测试来说是一个不错的选择：
+
+```bash
+export LANGSMITH_TRACING=false
+```
+
+<Accordion title="区分智能体追踪与应用追踪">
+    当从 LangChain 应用程序以编程方式调用 Deep Agents Code 时（例如在[非交互模式](#non-interactive-mode-and-piping)下作为子进程），你的应用和 Deep Agents Code 都会产生 LangSmith 追踪。默认情况下，所有这些都会进入同一个项目。
+
+    要将 Deep Agents Code 追踪发送到专用项目，设置 `DEEPAGENTS_CODE_LANGSMITH_PROJECT`：
+
+    ```bash title="~/.deepagents/.env"
+    DEEPAGENTS_CODE_LANGSMITH_PROJECT=my-deep-agent-execution
+    ```
+
+    然后为你的父应用程序追踪配置 `LANGSMITH_PROJECT`：
+
+    ```bash title="~/.deepagents/.env"
+    LANGSMITH_PROJECT=my-app-traces
+    ```
+
+    这样可以在保持应用级可观测性清晰的同时，在单独的项目中捕获智能体的内部执行。
+
+    你也可以使用 [`DEEPAGENTS_CODE_` 前缀](/zh/oss/deepagents/code/configuration#deepagents_code_-prefix)将 LangSmith 凭据限定在 Deep Agents Code 范围内（例如 `DEEPAGENTS_CODE_LANGSMITH_API_KEY`）。
+</Accordion>
+
+配置完成后，Deep Agents Code 会显示一个状态行，其中包含指向 LangSmith 项目的链接。在支持的终端中，点击链接可直接打开。你也可以使用 `/trace` 打印 URL 并在浏览器中打开。
+
+```sh
+✓ LangSmith 追踪：'my-project'
+```

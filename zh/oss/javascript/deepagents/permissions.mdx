@@ -1,0 +1,205 @@
+---
+title: 权限
+description: 使用声明式权限规则控制 Deep Agents 的文件系统访问
+---
+
+import PermissionsBasicPy from '/snippets/code-samples/permissions-basic-py.mdx';
+import PermissionsBasicJs from '/snippets/code-samples/permissions-basic-js.mdx';
+import PermissionsIsolateWorkspacePy from '/snippets/code-samples/permissions-isolate-workspace-py.mdx';
+import PermissionsIsolateWorkspaceJs from '/snippets/code-samples/permissions-isolate-workspace-js.mdx';
+import PermissionsProtectFilesPy from '/snippets/code-samples/permissions-protect-files-py.mdx';
+import PermissionsProtectFilesJs from '/snippets/code-samples/permissions-protect-files-js.mdx';
+import PermissionsReadOnlyMemoryPy from '/snippets/code-samples/permissions-read-only-memory-py.mdx';
+import PermissionsReadOnlyMemoryJs from '/snippets/code-samples/permissions-read-only-memory-js.mdx';
+import PermissionsDenyAllPy from '/snippets/code-samples/permissions-deny-all-py.mdx';
+import PermissionsDenyAllJs from '/snippets/code-samples/permissions-deny-all-js.mdx';
+import PermissionsRuleOrderingPy from '/snippets/code-samples/permissions-rule-ordering-py.mdx';
+import PermissionsRuleOrderingJs from '/snippets/code-samples/permissions-rule-ordering-js.mdx';
+import PermissionsSubagentPy from '/snippets/code-samples/permissions-subagent-py.mdx';
+import PermissionsSubagentJs from '/snippets/code-samples/permissions-subagent-js.mdx';
+import PermissionsCompositeBackendPy from '/snippets/code-samples/permissions-composite-backend-py.mdx';
+import PermissionsCompositeBackendJs from '/snippets/code-samples/permissions-composite-backend-js.mdx';
+import PermissionsCompositeBackendInvalidPy from '/snippets/code-samples/permissions-composite-backend-invalid-py.mdx';
+import PermissionsCompositeBackendInvalidJs from '/snippets/code-samples/permissions-composite-backend-invalid-js.mdx';
+
+使用声明式权限规则控制智能体可以读取或写入的文件和目录。将规则列表传递给 `permissions=`，智能体的内置文件系统工具将遵守这些规则。
+
+:::python
+<Note>
+    权限功能需要 `deepagents>=0.5.2`。
+</Note>
+:::
+
+:::js
+<Note>
+    权限功能需要 `deepagents>=1.9.1`。
+</Note>
+:::
+
+权限仅适用于内置文件系统工具（`ls`、`read_file`、`glob`、`grep`、`write_file`、`edit_file`）。访问文件系统的自定义工具和 MCP 工具不受覆盖。权限也不适用于[沙箱后端](/zh/oss/deepagents/sandboxes)，后者通过 `execute` 工具支持任意命令执行。
+
+<Tip>
+当你需要在内置文件系统工具上实施**基于路径的允许/拒绝规则**时，使用 `permissions`。当你需要自定义验证逻辑（速率限制、审计日志、内容检查）或需要控制自定义工具时，使用[后端策略钩子](/zh/oss/deepagents/backends#add-policy-hooks)。
+</Tip>
+
+## 基本用法
+
+:::python
+
+向 @[`create_deep_agent`] 传递 @[`FilesystemPermission`] 规则列表。规则按声明顺序求值。第一条匹配的规则胜出。如果没有规则匹配，则允许该操作。
+
+<PermissionsBasicPy />
+
+:::
+
+:::js
+
+向 `createDeepAgent` 传递 `FilesystemPermission` 规则列表。规则按声明顺序求值。第一条匹配的规则胜出。如果没有规则匹配，则允许该操作。
+
+<PermissionsBasicJs />
+
+:::
+
+## 规则结构
+
+:::python
+
+每个 `FilesystemPermission` 有三个字段：
+
+| 字段 | 类型 | 说明 |
+|-------|------|------|
+| `operations` | `list["read" \| "write"]` | 此规则适用的操作。`"read"` 涵盖 `ls`、`read_file`、`glob`、`grep`。`"write"` 涵盖 `write_file`、`edit_file`。 |
+| `paths` | `list[str]` | 用于匹配文件路径的 Glob 模式（例如 `["/workspace/**"]`）。支持 `**` 递归匹配和 `{a,b}` 交替匹配。 |
+| `mode` | `"allow" \| "deny"` | 是允许还是拒绝匹配的操作。默认为 `"allow"`。 |
+
+规则使用首匹配胜出求值：第一条 `operations` 和 `paths` 与当前调用匹配的规则决定结果。如果没有规则匹配，则调用被**允许**（宽松默认）。
+
+:::
+
+:::js
+
+每个 `FilesystemPermission` 有三个字段：
+
+| 字段 | 类型 | 说明 |
+|-------|------|------|
+| `operations` | `("read" \| "write")[]` | 此规则适用的操作。`"read"` 涵盖 `ls`、`read_file`、`glob`、`grep`。`"write"` 涵盖 `write_file`、`edit_file`。 |
+| `paths` | `string[]` | 用于匹配文件路径的 Glob 模式（例如 `["/workspace/**"]`）。支持 `**` 递归匹配和 `{a,b}` 交替匹配。 |
+| `mode` | `"allow" \| "deny"` | 是允许还是拒绝匹配的操作。默认为 `"allow"`。 |
+
+规则使用首匹配胜出求值：第一条 `operations` 和 `paths` 与当前调用匹配的规则决定结果。如果没有规则匹配，则调用被**允许**（宽松默认）。
+
+路径必须是绝对路径（以 `/` 开头），不能包含 `..` 或 `~`。无效路径会在智能体构建时抛出异常。
+
+:::
+
+## 示例
+
+:::python
+
+### 隔离到工作区目录
+
+只允许在 `/workspace/` 下读写，拒绝其他所有操作：
+
+<PermissionsIsolateWorkspacePy />
+
+### 保护特定文件
+
+<PermissionsProtectFilesPy />
+
+### 只读记忆
+
+允许智能体读取记忆文件，但阻止其修改。这适用于只能由应用程序代码更新的组织级策略或共享知识库。有关更多上下文，请参阅[只读与可写记忆](/zh/oss/deepagents/memory#read-only-vs-writable-memory)。
+
+<PermissionsReadOnlyMemoryPy />
+
+### 拒绝所有访问
+
+阻止所有读写操作。这是一个严格的基线，你可以在其上添加更具体的允许规则：
+
+<PermissionsDenyAllPy />
+
+### 规则排序
+
+由于首匹配胜出，规则顺序很重要。将更具体的规则放在更宽泛的规则之前：
+
+<PermissionsRuleOrderingPy />
+
+:::
+
+:::js
+
+### 隔离到工作区目录
+
+只允许在 `/workspace/` 下读写，拒绝其他所有操作：
+
+<PermissionsIsolateWorkspaceJs />
+
+### 保护特定文件
+
+<PermissionsProtectFilesJs />
+
+### 只读记忆
+
+允许智能体读取记忆文件，但阻止其修改。这适用于只能由应用程序代码更新的组织级策略或共享知识库。有关更多上下文，请参阅[只读与可写记忆](/zh/oss/deepagents/memory#read-only-vs-writable-memory)。
+
+<PermissionsReadOnlyMemoryJs />
+
+### 拒绝所有访问
+
+阻止所有读写操作。这是一个严格的基线，你可以在其上添加更具体的允许规则：
+
+<PermissionsDenyAllJs />
+
+### 规则排序
+
+由于首匹配胜出，规则顺序很重要。将更具体的规则放在更宽泛的规则之前：
+
+<PermissionsRuleOrderingJs />
+
+:::
+
+## 子代理权限
+
+:::python
+
+[子代理](/zh/oss/deepagents/subagents)默认继承父智能体的权限。要为子代理设置不同的权限，请在其配置中设置 `permissions` 字段。这会**完全替换**父级的规则。
+
+<PermissionsSubagentPy />
+
+:::
+
+:::js
+
+[子代理](/zh/oss/deepagents/subagents)默认继承父智能体的权限。要为子代理设置不同的权限，请在其配置中设置 `permissions` 字段。这会**完全替换**父级的规则。
+
+<PermissionsSubagentJs />
+
+要显式授予子代理无限制访问权限，请设置 `permissions: []`。空数组会用无限制规则覆盖父级规则。省略 `permissions` 则继承自父级。
+
+:::
+
+## 复合后端
+
+:::python
+
+当使用带有沙箱默认值的 @[`CompositeBackend`] 时，每个权限路径必须限定在已知路由前缀下。沙箱支持任意命令执行，因此仅靠基于路径的限制无法阻止通过 Shell 命令访问文件系统。将权限限定到特定路由的[后端](/zh/oss/deepagents/backends)可以避免此冲突。
+
+<PermissionsCompositeBackendPy />
+
+包含任何路由之外路径的权限会抛出 `NotImplementedError`：
+
+<PermissionsCompositeBackendInvalidPy />
+
+:::
+
+:::js
+
+当使用带有沙箱默认值的 `CompositeBackend` 时，每个权限路径必须限定在已知路由前缀下。沙箱支持任意命令执行，因此仅靠基于路径的限制无法阻止通过 Shell 命令访问文件系统。将权限限定到特定路由的[后端](/zh/oss/deepagents/backends)可以避免此冲突。
+
+<PermissionsCompositeBackendJs />
+
+包含任何路由之外路径的权限会在构建时抛出异常：
+
+<PermissionsCompositeBackendInvalidJs />
+
+:::

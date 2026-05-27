@@ -1,0 +1,150 @@
+---
+title: 使用远程沙箱
+sidebarTitle: 远程沙箱
+description: 在 LangSmith、Daytona、Modal、Runloop 或 AgentCore 沙箱中运行 Deep Agents Code 工具执行。安装提供商扩展，设置凭据，并使用标志和设置脚本。
+---
+
+Deep Agents Code 使用[沙箱即工具](/zh/oss/deepagents/sandboxes#sandbox-as-tool-pattern)模式：`dcode` 进程（LLM 循环、记忆、工具分发）在你的机器上运行，但智能体工具调用（`read_file`、`write_file`、`execute` 等）以远程沙箱为目标，而非你的本地文件系统。要将文件放入沙箱，请使用[设置脚本](#setup-scripts)或提供商的文件传输 API（参见[使用文件](/zh/oss/deepagents/sandboxes#working-with-files)）。
+
+有关沙箱架构、集成模式和安全最佳实践的深入探讨，请参见[沙箱](/zh/oss/deepagents/sandboxes)。
+
+<Steps>
+    <Step title="安装提供商依赖" icon="download">
+        <Tabs>
+            <Tab title="LangSmith">
+                安装 `deepagents-code` 时默认包含。无需额外安装。
+            </Tab>
+            <Tab title="Daytona">
+                ```bash
+                uv tool install deepagents-code --with langchain-daytona
+                ```
+            </Tab>
+            <Tab title="Modal">
+                ```bash
+                uv tool install deepagents-code --with langchain-modal
+                ```
+            </Tab>
+            <Tab title="Runloop">
+                ```bash
+                uv tool install deepagents-code --with langchain-runloop
+                ```
+            </Tab>
+            <Tab title="AgentCore">
+                ```bash
+                uv tool install deepagents-code --with langchain-agentcore-codeinterpreter
+                ```
+            </Tab>
+        </Tabs>
+    </Step>
+
+    <Step title="设置提供商凭据" icon="key">
+        <Tabs>
+            <Tab title="LangSmith">
+                ```bash
+                export LANGSMITH_API_KEY="your-key"
+                ```
+            </Tab>
+            <Tab title="Daytona">
+                ```bash
+                export DAYTONA_API_KEY="your-key"
+                ```
+            </Tab>
+            <Tab title="Modal">
+                ```bash
+                modal setup
+                ```
+            </Tab>
+            <Tab title="Runloop">
+                ```bash
+                export RUNLOOP_API_KEY="your-key"
+                ```
+            </Tab>
+            <Tab title="AgentCore">
+                ```bash
+                export AWS_ACCESS_KEY_ID="your-key"
+                export AWS_SECRET_ACCESS_KEY="your-secret"
+                export AWS_SESSION_TOKEN="session-token"
+                export AWS_REGION="us-west-2"
+                ```
+            </Tab>
+        </Tabs>
+    </Step>
+
+    <Step title="使用沙箱运行 Deep Agents Code" icon="player-play">
+        <Tabs>
+            <Tab title="LangSmith">
+                ```bash
+                dcode --sandbox langsmith
+                ```
+            </Tab>
+            <Tab title="Daytona">
+                ```bash
+                dcode --sandbox daytona
+                ```
+            </Tab>
+            <Tab title="Modal">
+                ```bash
+                dcode --sandbox modal
+                ```
+            </Tab>
+            <Tab title="Runloop">
+                ```bash
+                dcode --sandbox runloop
+                ```
+            </Tab>
+            <Tab title="AgentCore">
+                ```bash
+                dcode --sandbox agentcore
+                ```
+            </Tab>
+        </Tabs>
+    </Step>
+</Steps>
+
+## 沙箱标志和示例
+
+| 标志 | 描述 |
+|------|------|
+| `--sandbox TYPE` | 要使用的沙箱提供商：`langsmith`、`agentcore`、`modal`、`daytona` 或 `runloop`（默认：`none`） |
+| `--sandbox-id ID` | 按 ID 重用现有沙箱而不是创建新的。跳过创建和清理。有关更多信息，请参阅沙箱文档 |
+| `--sandbox-setup PATH` | 创建后在沙箱内运行的设置脚本路径 |
+
+示例：
+
+```bash
+# 创建新的 Daytona 沙箱
+dcode --sandbox daytona
+
+# 重用现有沙箱（跳过创建和清理）
+dcode --sandbox runloop --sandbox-id dbx_abc123
+
+# 在沙箱创建后运行设置脚本
+dcode --sandbox modal --sandbox-setup ./setup.sh
+```
+
+## 设置脚本
+
+使用 `--sandbox-setup` 在创建后在沙箱内运行 shell 脚本。这对于克隆仓库、安装依赖和配置环境变量非常有用。
+
+```bash title="setup.sh"
+#!/bin/bash
+set -e
+
+# 使用 GitHub 令牌克隆仓库
+git clone https://x-access-token:${GITHUB_TOKEN}@github.com/username/repo.git $HOME/workspace
+cd $HOME/workspace
+
+# 使环境变量持久化
+cat >> ~/.bashrc <<'EOF'
+export GITHUB_TOKEN="${GITHUB_TOKEN}"
+export OPENAI_API_KEY="${OPENAI_API_KEY}"
+cd $HOME/workspace
+EOF
+source ~/.bashrc
+```
+
+Deep Agents Code 使用你的本地环境变量展开设置脚本中的 `${VAR}` 引用。将密钥存储在本地 `.env` 文件中，以便设置脚本访问。
+
+<Warning>
+    沙箱隔离代码执行，但智能体仍然容易受到来自不受信任输入的提示注入攻击。使用人在回路批准、短寿命密钥和受信任的设置脚本。有关详细信息，请参见[安全考虑](/zh/oss/deepagents/sandboxes#security-considerations)。
+</Warning>

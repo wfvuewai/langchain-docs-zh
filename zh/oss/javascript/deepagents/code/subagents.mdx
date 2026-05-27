@@ -1,0 +1,60 @@
+---
+title: 在 Deep Agents Code 中使用子智能体
+sidebarTitle: 子智能体
+description: 将自定义 Deep Agents Code 子智能体定义为带有 YAML 前置元数据的 AGENTS.md 文件。涵盖项目和用户路径、可选模型覆盖和示例。
+---
+
+将自定义同步[子智能体](/zh/oss/deepagents/subagents)定义为 markdown 文件，以便 Deep Agents Code 可以将专门任务委派给它们。
+
+<Note>
+    Deep Agents Code 目前不支持异步子智能体。
+</Note>
+
+每个子智能体位于自己的文件夹中，包含一个 `AGENTS.md` 文件：
+
+```text
+.deepagents/agents/{subagent-name}/AGENTS.md   # 项目级别
+~/.deepagents/{agent}/agents/{subagent-name}/AGENTS.md  # 用户级别
+```
+
+项目子智能体会覆盖同名的用户子智能体（参见[优先级规则](/zh/oss/deepagents/code/data-locations#subagents)）。
+
+前置元数据需要 `name` 和 `description`（与 [`SubAgent` 字典规范](/zh/oss/deepagents/subagents#subagent-dictionary-based)相同）。markdown 正文成为子智能体的 `system_prompt`。除了基础规范外，`AGENTS.md` 文件支持可选的 `model` 前置元数据字段，覆盖主子智能体用于此子智能体的模型。使用 `provider:model-name` 格式（例如 `anthropic:claude-opus-4-7`、`openai:gpt-5.5`）。省略以继承主子智能体的模型。
+
+<Note>
+    其他 `SubAgent` 字段（`tools`、`middleware`、`interrupt_on`、`skills`）目前无法通过 `AGENTS.md` 前置元数据配置——以这种方式定义的自定义子智能体继承主子智能体的工具。完整控制请直接使用 SDK。
+</Note>
+
+## 文件格式
+
+子智能体 `AGENTS.md` 文件使用 YAML 前置元数据，后跟 markdown 正文：
+
+```markdown
+---
+name: researcher
+description: 在编写内容之前搜索网络上的研究主题
+model: anthropic:claude-haiku-4-5-20251001
+---
+
+你是一个可以访问网络搜索的研究助手。
+
+## 你的流程
+1. 搜索相关信息
+2. 清晰地总结发现
+```
+
+## 示例：成本高效子智能体
+
+对简单的委派任务使用更便宜、更快的模型，同时让主子智能体保持在更强大的模型上：
+
+```markdown
+---
+name: general-purpose
+description: 用于研究和多步骤任务的通用智能体
+model: anthropic:claude-haiku-4-5-20251001
+---
+
+你是一个通用助手。高效完成任务并返回简明摘要。
+```
+
+这会覆盖内置的通用子智能体，将所有委派任务路由到更便宜的模型。参见[覆盖通用子智能体](/zh/oss/deepagents/subagents#override-the-general-purpose-subagent)了解更多。
