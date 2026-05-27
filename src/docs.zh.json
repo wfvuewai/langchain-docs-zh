@@ -1068,53 +1068,53 @@
               {
                 "tab": "Deep Agents",
                 "pages": [
-                  "zh/oss/deepagents/overview",
+                  "zh/oss/python/deepagents/overview",
                   {
                     "group": "Get started",
                     "pages": [
-                      "zh/oss/deepagents/quickstart",
-                      "zh/oss/deepagents/customization",
-                      "zh/oss/deepagents/comparison",
-                      "zh/oss/deepagents/changelog-py"
+                      "zh/oss/python/deepagents/quickstart",
+                      "zh/oss/python/deepagents/customization",
+                      "zh/oss/python/deepagents/comparison",
+                      "zh/oss/python/deepagents/changelog-py"
                     ]
                   },
                   {
                     "group": "Deployment",
                     "pages": [
                       "zh/langsmith/deploy-managed-deep-agent",
-                      "zh/oss/deepagents/going-to-production"
+                      "zh/oss/python/deepagents/going-to-production"
                     ]
                   },
                   {
                     "group": "Core capabilities",
                     "pages": [
-                      "zh/oss/deepagents/harness",
-                      "zh/oss/deepagents/models",
-                      "zh/oss/deepagents/context-engineering",
-                      "zh/oss/deepagents/backends",
-                      "zh/oss/deepagents/subagents",
-                      "zh/oss/deepagents/async-subagents",
-                      "zh/oss/deepagents/human-in-the-loop",
-                      "zh/oss/deepagents/permissions",
-                      "zh/oss/deepagents/memory",
-                      "zh/oss/deepagents/skills",
-                      "zh/oss/deepagents/sandboxes",
-                      "zh/oss/deepagents/interpreters",
-                      "zh/oss/deepagents/profiles",
-                      "zh/oss/deepagents/event-streaming",
-                      "zh/oss/deepagents/streaming"
+                      "zh/oss/python/deepagents/harness",
+                      "zh/oss/python/deepagents/models",
+                      "zh/oss/python/deepagents/context-engineering",
+                      "zh/oss/python/deepagents/backends",
+                      "zh/oss/python/deepagents/subagents",
+                      "zh/oss/python/deepagents/async-subagents",
+                      "zh/oss/python/deepagents/human-in-the-loop",
+                      "zh/oss/python/deepagents/permissions",
+                      "zh/oss/python/deepagents/memory",
+                      "zh/oss/python/deepagents/skills",
+                      "zh/oss/python/deepagents/sandboxes",
+                      "zh/oss/python/deepagents/interpreters",
+                      "zh/oss/python/deepagents/profiles",
+                      "zh/oss/python/deepagents/event-streaming",
+                      "zh/oss/python/deepagents/streaming"
                     ]
                   },
                   {
                     "group": "Frontend",
                     "pages": [
-                      "zh/oss/deepagents/frontend/overview",
+                      "zh/oss/python/deepagents/frontend/overview",
                       {
                         "group": "Patterns",
                         "pages": [
-                          "zh/oss/deepagents/frontend/subagent-streaming",
-                          "zh/oss/deepagents/frontend/todo-list",
-                          "zh/oss/deepagents/frontend/sandbox"
+                          "zh/oss/python/deepagents/frontend/subagent-streaming",
+                          "zh/oss/python/deepagents/frontend/todo-list",
+                          "zh/oss/python/deepagents/frontend/sandbox"
                         ]
                       }
                     ]
@@ -1122,22 +1122,22 @@
                   {
                     "group": "Protocols",
                     "pages": [
-                      "zh/oss/deepagents/acp",
-                      "zh/oss/deepagents/mcp",
-                      "zh/oss/deepagents/a2a"
+                      "zh/oss/python/deepagents/acp",
+                      "zh/oss/python/deepagents/mcp",
+                      "zh/oss/python/deepagents/a2a"
                     ]
                   },
                   {
                     "group": "Deep Agents Code",
                     "pages": [
-                      "zh/oss/deepagents/code/overview",
-                      "zh/oss/deepagents/code/memory-and-skills",
-                      "zh/oss/deepagents/code/remote-sandboxes",
-                      "zh/oss/deepagents/code/subagents",
-                      "zh/oss/deepagents/code/providers",
-                      "zh/oss/deepagents/code/configuration",
-                      "zh/oss/deepagents/code/mcp-tools",
-                      "zh/oss/deepagents/code/data-locations"
+                      "zh/oss/python/deepagents/code/overview",
+                      "zh/oss/python/deepagents/code/memory-and-skills",
+                      "zh/oss/python/deepagents/code/remote-sandboxes",
+                      "zh/oss/python/deepagents/code/subagents",
+                      "zh/oss/python/deepagents/code/providers",
+                      "zh/oss/python/deepagents/code/configuration",
+                      "zh/oss/python/deepagents/code/mcp-tools",
+                      "zh/oss/python/deepagents/code/data-locations"
                     ]
                   }
                 ]
@@ -1376,9 +1376,9 @@
                         "group": "Deep Agents",
                         "expanded": true,
                         "pages": [
-                          "zh/oss/deepagents/data-analysis",
-                          "zh/oss/deepagents/deep-research",
-                          "zh/oss/deepagents/content-builder"
+                          "zh/oss/python/deepagents/data-analysis",
+                          "zh/oss/python/deepagents/deep-research",
+                          "zh/oss/python/deepagents/content-builder"
                         ]
                       },
                       {
@@ -1520,53 +1520,53 @@
               {
                 "tab": "Deep Agents",
                 "pages": [
-                  "zh/oss/deepagents/overview",
+                  "zh/oss/python/deepagents/overview",
                   {
                     "group": "Get started",
                     "pages": [
-                      "zh/oss/deepagents/quickstart",
-                      "zh/oss/deepagents/customization",
-                      "zh/oss/deepagents/comparison",
-                      "zh/oss/deepagents/changelog-js"
+                      "zh/oss/python/deepagents/quickstart",
+                      "zh/oss/python/deepagents/customization",
+                      "zh/oss/python/deepagents/comparison",
+                      "zh/oss/python/deepagents/changelog-js"
                     ]
                   },
                   {
                     "group": "Deployment",
                     "pages": [
                       "zh/langsmith/deploy-managed-deep-agent",
-                      "zh/oss/deepagents/going-to-production"
+                      "zh/oss/python/deepagents/going-to-production"
                     ]
                   },
                   {
                     "group": "Core capabilities",
                     "pages": [
-                      "zh/oss/deepagents/harness",
-                      "zh/oss/deepagents/models",
-                      "zh/oss/deepagents/context-engineering",
-                      "zh/oss/deepagents/backends",
-                      "zh/oss/deepagents/subagents",
-                      "zh/oss/deepagents/async-subagents",
-                      "zh/oss/deepagents/human-in-the-loop",
-                      "zh/oss/deepagents/permissions",
-                      "zh/oss/deepagents/memory",
-                      "zh/oss/deepagents/skills",
-                      "zh/oss/deepagents/sandboxes",
-                      "zh/oss/deepagents/interpreters",
-                      "zh/oss/deepagents/profiles",
-                      "zh/oss/deepagents/event-streaming",
-                      "zh/oss/deepagents/streaming"
+                      "zh/oss/python/deepagents/harness",
+                      "zh/oss/python/deepagents/models",
+                      "zh/oss/python/deepagents/context-engineering",
+                      "zh/oss/python/deepagents/backends",
+                      "zh/oss/python/deepagents/subagents",
+                      "zh/oss/python/deepagents/async-subagents",
+                      "zh/oss/python/deepagents/human-in-the-loop",
+                      "zh/oss/python/deepagents/permissions",
+                      "zh/oss/python/deepagents/memory",
+                      "zh/oss/python/deepagents/skills",
+                      "zh/oss/python/deepagents/sandboxes",
+                      "zh/oss/python/deepagents/interpreters",
+                      "zh/oss/python/deepagents/profiles",
+                      "zh/oss/python/deepagents/event-streaming",
+                      "zh/oss/python/deepagents/streaming"
                     ]
                   },
                   {
                     "group": "Frontend",
                     "pages": [
-                      "zh/oss/deepagents/frontend/overview",
+                      "zh/oss/python/deepagents/frontend/overview",
                       {
                         "group": "Patterns",
                         "pages": [
-                          "zh/oss/deepagents/frontend/subagent-streaming",
-                          "zh/oss/deepagents/frontend/todo-list",
-                          "zh/oss/deepagents/frontend/sandbox"
+                          "zh/oss/python/deepagents/frontend/subagent-streaming",
+                          "zh/oss/python/deepagents/frontend/todo-list",
+                          "zh/oss/python/deepagents/frontend/sandbox"
                         ]
                       }
                     ]
@@ -1574,22 +1574,22 @@
                   {
                     "group": "Protocols",
                     "pages": [
-                      "zh/oss/deepagents/acp",
-                      "zh/oss/deepagents/mcp",
-                      "zh/oss/deepagents/a2a"
+                      "zh/oss/python/deepagents/acp",
+                      "zh/oss/python/deepagents/mcp",
+                      "zh/oss/python/deepagents/a2a"
                     ]
                   },
                   {
                     "group": "Deep Agents Code",
                     "pages": [
-                      "zh/oss/deepagents/code/overview",
-                      "zh/oss/deepagents/code/memory-and-skills",
-                      "zh/oss/deepagents/code/remote-sandboxes",
-                      "zh/oss/deepagents/code/subagents",
-                      "zh/oss/deepagents/code/providers",
-                      "zh/oss/deepagents/code/configuration",
-                      "zh/oss/deepagents/code/mcp-tools",
-                      "zh/oss/deepagents/code/data-locations"
+                      "zh/oss/python/deepagents/code/overview",
+                      "zh/oss/python/deepagents/code/memory-and-skills",
+                      "zh/oss/python/deepagents/code/remote-sandboxes",
+                      "zh/oss/python/deepagents/code/subagents",
+                      "zh/oss/python/deepagents/code/providers",
+                      "zh/oss/python/deepagents/code/configuration",
+                      "zh/oss/python/deepagents/code/mcp-tools",
+                      "zh/oss/python/deepagents/code/data-locations"
                     ]
                   }
                 ]
@@ -1872,8 +1872,8 @@
                         "group": "Deep Agents",
                         "expanded": true,
                         "pages": [
-                          "zh/oss/deepagents/deep-research",
-                          "zh/oss/deepagents/content-builder"
+                          "zh/oss/python/deepagents/deep-research",
+                          "zh/oss/python/deepagents/content-builder"
                         ]
                       },
                       {
