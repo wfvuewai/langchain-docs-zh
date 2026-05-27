@@ -1,0 +1,400 @@
+---
+title: 自定义 middleware
+description: 使用钩子和装饰器构建你自己的 middleware
+---
+
+如果[内置 middleware](/oss/langchain/middleware/built-in) 不符合你的需求，你可以创建自定义 middleware。有两种方式创建自定义 middleware：
+
+1. **Middleware 类**（推荐）：提供完整的 middleware 功能，包括钩子和工具注入。
+2. **Middleware 函数**：为简单场景提供轻量级 API。
+
+## Middleware 钩子
+
+Middleware 可以定义以下钩子：
+
+| 钩子 | 时机 | 用途 |
+|------|------|------|
+| `on_model_call` | 调用前 | 检查或修改发送给模型的提示词。 |
+| `after_model_call` | 调用后 | 检查或修改模型的响应。 |
+| `on_tool_start` | 工具执行前 | 检查或修改待处理的工具调用。 |
+| `on_tool_end` | 工具执行后 | 检查或修改工具输出。 |
+| `on_agent_finish` | 最终输出前 | 修改最终的 agent 输出。 |
+| `on_end` | 结束时 | 清理资源或记录最终状态。 |
+
+`on_model_call` 钩子接收的消息不包含工具消息，`after_model_call` 返回的消息包含工具调用。
+
+## Middleware 类
+
+创建继承自 `BaseMiddleware` 的类，并重写你需要的钩子：
+
+:::python
+**API 参考：** @[`BaseMiddleware`]
+
+```python
+import json
+from typing import Any, Optional
+
+from langchain.agents import create_agent
+from langchain.agents.middleware import BaseMiddleware
+from langchain.agents.middleware.controller import Controller
+from langchain.core.messages import AIMessage, BaseMessage, ToolMessage
+
+
+class LoggingMiddleware(BaseMiddleware):
+    """记录每条消息的内容。"""
+
+    def __init__(self, log_file: str = "agent_log.jsonl"):
+        self.log_file = log_file
+
+    async def on_model_call(
+        self,
+        messages: list[BaseMessage],
+        controller: Controller,
+    ) -> None:
+        with open(self.log_file, "a") as f:
+            f.write(json.dumps({
+                "type": "model_input",
+                "messages": [msg.to_json() for msg in messages],
+            }) + "\n")
+
+    async def after_model_call(
+        self,
+        messages: list[BaseMessage],
+        controller: Controller,
+    ) -> None:
+        with open(self.log_file, "a") as f:
+            f.write(json.dumps({
+                "type": "model_output",
+                "messages": [msg.to_json() for msg in messages],
+            }) + "\n")
+
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[...],
+    middleware=[LoggingMiddleware("agent_log.jsonl")],
+)
+```
+:::
+
+:::js
+**API 参考：** `BaseMiddleware`
+
+```typescript
+import {
+  createAgent,
+  BaseMiddleware,
+  Controller,
+  type BaseMessage,
+  type AIMessage,
+  type ToolMessage,
+} from "langchain";
+
+class LoggingMiddleware extends BaseMiddleware {
+  private logFile: string;
+
+  constructor(logFile: string = "agent_log.jsonl") {
+    super();
+    this.logFile = logFile;
+  }
+
+  async onModelCall(
+    messages: BaseMessage[],
+    controller: Controller
+  ): Promise<void> {
+    // 记录模型输入
+    console.log(`[${this.logFile}] Model input:`, messages.length, "messages");
+  }
+
+  async afterModelCall(
+    messages: BaseMessage[],
+    controller: Controller
+  ): Promise<void> {
+    // 记录模型输出
+    console.log(`[${this.logFile}] Model output:`, messages.length, "messages");
+  }
+}
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [...],
+  middleware: [new LoggingMiddleware("agent_log.jsonl")],
+});
+```
+:::
+
+## Middleware 函数
+
+对于只包含一个钩子的简单场景，你可以直接编写一个函数：
+
+:::python
+Middleware 函数接受 `messages: list[BaseMessage]` 和 `controller: Controller` 作为参数，并返回相同的签名。函数名决定了它挂钩到哪个生命周期事件：
+
+| 函数名 | 挂钩的钩子 |
+|--------|------------|
+| `on_model_call` | `on_model_call` |
+| `after_model_call` | `after_model_call` |
+| `on_tool_start` | `on_tool_start` |
+| `on_tool_end` | `on_tool_end` |
+| `on_agent_finish` | `on_agent_finish` |
+| `on_end` | `on_end` |
+
+```python
+import json
+
+from langchain.agents import create_agent
+from langchain.agents.middleware import controller, middleware
+from langchain.core.messages import BaseMessage
+
+
+@middleware
+async def log_middleware(
+    messages: list[BaseMessage],
+    ctrl: controller,
+) -> None:
+    with open("model_calls.jsonl", "a") as f:
+        f.write(json.dumps({
+            "count": len(messages),
+            "message_types": [type(m).__name__ for m in messages],
+        }) + "\n")
+
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[...],
+    middleware=[log_middleware],
+)
+```
+:::
+
+:::js
+Middleware 函数接受 `messages: BaseMessage[]` 和 `controller: Controller` 作为参数，并返回相同的签名。函数名决定了它挂钩到哪个生命周期事件：
+
+| 函数名 | 挂钩的钩子 |
+|--------|------------|
+| `onModelCall` | `on_model_call` |
+| `afterModelCall` | `after_model_call` |
+| `onToolStart` | `on_tool_start` |
+| `onToolEnd` | `on_tool_end` |
+| `onAgentFinish` | `on_agent_finish` |
+| `onEnd` | `on_end` |
+
+```typescript
+import { createAgent, middleware, type BaseMessage, type Controller } from "langchain";
+
+const logMiddleware = middleware(async (
+  messages: BaseMessage[],
+  controller: Controller
+) => {
+  console.log(`Model call with ${messages.length} messages`);
+});
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [...],
+  middleware: [logMiddleware],
+});
+```
+:::
+
+## 使用 controller 修改消息
+
+Middleware 可以修改消息并注入新消息。不要直接修改钩子接收的列表——始终通过 `Controller` 修改消息。
+
+:::python
+
+```python
+from langchain.agents.middleware import BaseMiddleware, Controller
+from langchain.agents.middleware.decorators import on_model_call
+from langchain.core.messages import AIMessage, BaseMessage, SystemMessage
+
+
+class PromptInjector(BaseMiddleware):
+    """在每次模型调用前注入系统提示。"""
+
+    def __init__(self, prompt: str):
+        self.prompt = prompt
+
+    async def on_model_call(
+        self,
+        messages: list[BaseMessage],
+        controller: Controller,
+    ) -> None:
+        # 在消息列表开头注入系统提示
+        controller.insert(0, SystemMessage(content=self.prompt))
+
+
+class OutputFormatter(BaseMiddleware):
+    """确保模型输出遵循特定格式。"""
+
+    async def after_model_call(
+        self,
+        messages: list[BaseMessage],
+        controller: Controller,
+    ) -> None:
+        # 修改最后一条 AI 消息
+        last_msg = messages[-1]
+        if isinstance(last_msg, AIMessage):
+            formatted_content = f"<response>{last_msg.content}</response>"
+            # 替换最后一条消息
+            controller.replace(-1, AIMessage(content=formatted_content))
+```
+:::
+
+:::js
+```typescript
+import { BaseMiddleware, Controller, SystemMessage, AIMessage, type BaseMessage } from "langchain";
+
+class PromptInjector extends BaseMiddleware {
+  private prompt: string;
+
+  constructor(prompt: string) {
+    super();
+    this.prompt = prompt;
+  }
+
+  async onModelCall(
+    messages: BaseMessage[],
+    controller: Controller
+  ): Promise<void> {
+    // 在消息列表开头注入系统提示
+    controller.insert(0, new SystemMessage({ content: this.prompt }));
+  }
+}
+
+class OutputFormatter extends BaseMiddleware {
+  async afterModelCall(
+    messages: BaseMessage[],
+    controller: Controller
+  ): Promise<void> {
+    // 修改最后一条 AI 消息
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg instanceof AIMessage) {
+      const formattedContent = `<response>${lastMsg.content}</response>`;
+      // 替换最后一条消息
+      controller.replace(-1, new AIMessage({ content: formattedContent }));
+    }
+  }
+}
+```
+:::
+
+## Controller API
+
+`Controller` 提供了用于修改消息的安全方法：
+
+<Accordion title="方法参考">
+
+| 方法 | 描述 |
+|------|------|
+| `insert(index, message)` | 在指定索引处插入一条或多条消息。 |
+| `replace(index, message)` | 替换指定索引处的消息。 |
+| `append(message)` | 在列表末尾添加消息。 |
+| `clear()` | 移除所有已排队的修改。 |
+
+在 Python 中，`insert` 和 `replace` 支持负数索引（例如 `-1` 表示最后一条消息）。
+
+当修改模型调用输入（在 `on_model_call` 期间）时，可以插入或替换消息。但请注意，在 `after_model_call` 期间更改输入消息无效——更改只影响后续的调用。
+
+</Accordion>
+
+## 添加自定义工具
+
+Middleware 可以向 agent 注册自定义工具。要添加工具，覆盖 `add_tools` 方法并返回一个工具列表，这些工具将被添加到 agent 的工具集中。
+
+:::python
+
+```python
+from langchain.agents.middleware import BaseMiddleware
+from langchain.tools import tool
+
+
+class CustomToolsMiddleware(BaseMiddleware):
+    """向 agent 添加自定义工具的中层件。"""
+
+    def add_tools(self) -> list:
+        @tool
+        def custom_search(query: str) -> str:
+            """搜索自定义数据库。"""
+            return f"Results for: {query}"
+
+        @tool
+        def custom_analyze(data: str) -> dict:
+            """分析数据并返回结果。"""
+            return {"status": "analyzed", "data": data}
+
+        return [custom_search, custom_analyze]
+```
+:::
+
+:::js
+```typescript
+import { BaseMiddleware, tool } from "langchain";
+import { z } from "zod";
+
+class CustomToolsMiddleware extends BaseMiddleware {
+  addTools() {
+    const customSearch = tool(
+      async ({ query }: { query: string }) => `Results for: ${query}`,
+      {
+        name: "custom_search",
+        description: "搜索自定义数据库。",
+        schema: z.object({ query: z.string() }),
+      }
+    );
+
+    const customAnalyze = tool(
+      async ({ data }: { data: string }) => ({ status: "analyzed", data }),
+      {
+        name: "custom_analyze",
+        description: "分析数据并返回结果。",
+        schema: z.object({ data: z.string() }),
+      }
+    );
+
+    return [customSearch, customAnalyze];
+  }
+}
+```
+:::
+
+## 自定义工具注入流程
+
+创建实现 `add_tools` 的自定义 middleware 后，工具将自动注册到你配置 middleware 的 agent。该流程在 agent 初始化期间无缝进行。
+
+:::python
+```python
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[existing_tool],
+    middleware=[CustomToolsMiddleware()],
+)
+# agent 现在已注册了 existing_tool、custom_search 和 custom_analyze
+```
+:::
+
+:::js
+```typescript
+import { createAgent } from "langchain";
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [existingTool],
+  middleware: [new CustomToolsMiddleware()],
+});
+// agent 现在已注册了 existingTool、customSearch 和 customAnalyze
+```
+:::
+
+## 其他资源
+
+<CardGroup cols={2}>
+    <Card title="内置 middleware" icon="box" href="/oss/langchain/middleware/built-in">
+        探索用于常见用例的内置 middleware。
+    </Card>
+    <Card title="Middleware API 参考" icon="book" href="https://reference.langchain.com/python/langchain/middleware/">
+        完整的 API 参考。
+    </Card>
+</CardGroup>

@@ -44,8 +44,8 @@ def copy_chinese_content() -> None:
     """Copy Chinese content from src/zh/ to build/zh/.
     
     Creates language-specific copies for Mintlify's language toggle:
-    - zh/oss/deepagents/ -> zh/oss/python/deepagents/
-    - zh/oss/deepagents/ -> zh/oss/javascript/deepagents/
+    - zh/oss/<section>/ -> zh/oss/python/<section>/
+    - zh/oss/<section>/ -> zh/oss/javascript/<section>/
     """
     zh_src = SRC_DIR / "zh"
     zh_dst = BUILD_DIR / "zh"
@@ -60,6 +60,8 @@ def copy_chinese_content() -> None:
         shutil.rmtree(zh_dst)
     zh_dst.mkdir(parents=True, exist_ok=True)
 
+    oss_prefix = Path("oss")
+
     copied_count = 0
     for item in zh_src.rglob("*"):
         if item.is_file() and item.suffix.lower() in {
@@ -72,11 +74,12 @@ def copy_chinese_content() -> None:
             copied_count += 1
             logger.debug("  Copied: zh/%s", rel_path)
 
-            # Also copy deepagents content to python/ and javascript/ paths
+            # Copy all OSS content to python/ and javascript/ language paths
             # for Mintlify's language toggle feature
-            if "deepagents" in str(rel_path):
+            if str(rel_path).startswith("oss/") and "/" in str(rel_path):
+                rest = rel_path.relative_to(oss_prefix)
                 for lang in ["python", "javascript"]:
-                    lang_rel_path = Path("oss") / lang / rel_path.relative_to("oss")
+                    lang_rel_path = oss_prefix / lang / rest
                     lang_dest = zh_dst / lang_rel_path
                     lang_dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(item, lang_dest)

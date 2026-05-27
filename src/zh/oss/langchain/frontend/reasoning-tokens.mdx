@@ -1,0 +1,121 @@
+---
+title: 推理 token
+description: 将模型推理步骤流式传输到前端
+---
+
+某些模型（例如 `deepseek-reasoner`、`claude-sonnet-4-6`）在生成响应时会产生"推理 token"。这些 token 代表了模型的思维过程——你在模型的最终答案之前看到的内部推理。
+
+<Note>
+    推理 token 特定于支持它们的模型。不是所有模型都会生成推理 token。
+</Note>
+
+## 将推理步骤流式传输到前端
+
+启用推理 token 流式传输可以在模型推理时实时查看模型的思维过程。你的前端可以逐步显示推理步骤，使用户在等待完整响应时保持参与感。
+
+### 实现
+
+要将推理 token 流式传输到前端，需要配置你的 agent 以暴露推理步骤。
+
+:::python
+```python
+# 概念性的流式推理示例
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="claude-sonnet-4-6",
+)
+
+async for event in agent.astream_events(
+    {"messages": [{"role": "user", "content": "解释量子纠缠"}]},
+    version="v2",
+    include_reasoning=True,  # 启用推理 token
+):
+    if event["event"] == "on_chat_model_stream":
+        # 检查推理块
+        if hasattr(event["data"]["chunk"], "reasoning_content"):
+            reasoning = event["data"]["chunk"].reasoning_content
+            # 将推理流式传输到前端
+            yield {"type": "reasoning", "content": reasoning}
+        # 处理常规内容
+        if event["data"]["chunk"].content:
+            yield {"type": "content", "content": event["data"]["chunk"].content}
+```
+:::
+
+:::js
+```typescript
+// 概念性的流式推理示例
+import { createAgent } from "langchain";
+
+const agent = createAgent({
+  model: "claude-sonnet-4-6",
+});
+
+for await (const event of agent.astreamEvents(
+  { messages: [{ role: "user", content: "解释量子纠缠" }] },
+  { version: "v2", includeReasoning: true }
+)) {
+  if (event.event === "on_chat_model_stream") {
+    const chunk = event.data.chunk;
+    // 检查推理内容
+    if (chunk.reasoningContent) {
+      yield { type: "reasoning", content: chunk.reasoningContent };
+    }
+    // 处理常规内容
+    if (chunk.content) {
+      yield { type: "content", content: chunk.content };
+    }
+  }
+}
+```
+:::
+
+## 推理和内容分离
+
+当推理 token 可用时，你的前端可以通过将推理步骤与最终内容分开渲染来提升用户体验。
+
+### 前端渲染策略
+
+UI 中常见的方法包括：
+
+1. **可折叠推理面板**：在可展开的部分中显示推理步骤，保持对话整洁。
+2. **推理指示器**：在 agent 推理时显示动画指示器，然后显示最终内容。
+3. **逐步展示**：依次显示推理步骤，每一步都有时间戳。
+
+### 基本实现
+
+```jsx
+// 概念性的 React 组件
+function ReasoningMessage({ message }) {
+  const [showReasoning, setShowReasoning] = useState(false);
+
+  return (
+    <div className="message">
+      {message.reasoning && (
+        <div className="reasoning-section">
+          <button onClick={() => setShowReasoning(!showReasoning)}>
+            {showReasoning ? "隐藏推理" : "显示推理"}
+          </button>
+          {showReasoning && (
+            <div className="reasoning-content">
+              {message.reasoning}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="content">{message.content}</div>
+    </div>
+  );
+}
+```
+
+## 推理步骤的最佳实践
+
+在前端显示推理 token 时：
+
+- **使推理可选**：默认情况下，将推理隐藏在可折叠部分中。
+- **区分推理和内容**：清晰标记推理步骤与最终响应。
+- **显示进度**：在 agent 推理时提供视觉反馈。
+- **处理长推理**：对于很长的推理链，考虑分页。
+- **考虑 token 限制**：推理步骤会消耗 token，因此请注意成本。

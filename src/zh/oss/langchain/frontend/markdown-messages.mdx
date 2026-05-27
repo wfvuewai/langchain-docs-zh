@@ -1,0 +1,30 @@
+---
+title: Markdown 消息
+description: 在 agent 消息中使用 Markdown 进行格式化
+---
+
+LangChain agent 原生支持在消息内容中嵌入 Markdown。这使 agent 能够使用格式化文本进行响应。
+
+```python
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="gpt-5.4",
+)
+
+# 启用 Markdown 渲染
+result = agent.invoke({
+    "messages": [{"role": "user", "content": "给我一个包含列表和代码的响应"}],
+})
+print(result["messages"][-1].content)
+# **粗体文本** 和 _斜体文本_
+# - 列表项 1
+# - 列表项 2
+# ```python\nprint("hello")\n```
+```
+
+将消息作为 Markdown 渲染，为用户提供丰富的阅读体验。
+
+LangChain 还支持[消息标记](https://docs.rs/agent-doc/latest/agent_doc/message/tags/index.html)，可以将元数据（如 token 计数、模型标识符和工具调用）直接嵌入到消息中。
+
+这种标记方法的工作方式类似于 Markdown 的 `<!-- -->` 语法——使用带属性的自定义标记，这些属性在渲染时被提取出来，同时保持基础内容不变。标签在渲染回 UI 之前被解析成结构化元数据，从而实现更丰富的消息显示，而不会弄乱对话文本。
