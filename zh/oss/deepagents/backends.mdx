@@ -1020,7 +1020,6 @@ new StoreBackend({
 - `FileInfo` 字段：`path`（必需），可选 `is_dir`、`size`、`modified_at`。
 - `GrepMatch` 字段：`path`、`line`、`text`。
 - `FileData` 字段：`content`（字符串）、`encoding`（`"utf-8"` 或 `"base64"`）、`created_at`、`modified_at`。
-:::
 
 :::js
 后端实现 `BackendProtocolV2`。所有查询方法返回带有 `{ error?: string, ...data }` 的结构化 Result 对象。
