@@ -1,4 +1,4 @@
-"""Build Chinese documentation for GitHub Pages deployment.
+"""Build Chinese documentation for Mintlify Cloud deployment.
 
 Usage:
     python scripts/build_zh.py
@@ -7,6 +7,7 @@ This script:
 1. Runs the standard pipeline to generate build/ with English + shared assets
 2. Copies Chinese content from src/zh/ to build/zh/
 3. Uses docs.zh.json as the main docs.json for building
+4. Copies mint.json to build/ so Mintlify Cloud can identify the project
 """
 
 import json
@@ -112,11 +113,24 @@ def replace_docs_json() -> None:
     logger.info("docs.json replaced.")
 
 
+def copy_mint_json() -> None:
+    """Copy mint.json to build/ so Mintlify Cloud can identify the project."""
+    src = REPO_ROOT / "mint.json"
+    dst = BUILD_DIR / "mint.json"
+    if not src.exists():
+        logger.warning("mint.json not found, skipping")
+        return
+    logger.info("Step 5: Copying mint.json to build/...")
+    shutil.copy2(src, dst)
+    logger.info("mint.json copied.")
+
+
 def main() -> None:
     run_pipeline_build()
     copy_chinese_content()
     remove_english_content()
     replace_docs_json()
+    copy_mint_json()
     logger.info("✅ Chinese build preparation complete.")
 
 

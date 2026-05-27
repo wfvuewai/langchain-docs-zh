@@ -1,5 +1,5 @@
 ---
-name: Deploy Chinese Docs to GitHub Pages
+name: Deploy Chinese Docs for Mintlify Cloud
 
 on:
   push:
@@ -7,9 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -32,57 +30,20 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --all-groups
 
-      - name: Build Chinese docs
+      - name: Build Chinese docs (pipeline + Chinese content)
         run: uv run python scripts/build_zh.py
 
-      - name: Install Mintlify CLI (latest)
-        run: npm install -g mint@latest
-
-      - name: Export static site with mint export
-        timeout-minutes: 360
+      - name: Verify build output exists
         run: |
-          cd build
-          echo "=== Starting mint export at $(date) ==="
-          echo "Files in build/: $(find . -type f | wc -l)"
-          echo "Directory structure:"
-          find . -maxdepth 2 -type d | sort
-          echo "=== Running mint export... ==="
-          mint export --output ../site.zip 2>&1
-          echo "=== mint export completed at $(date) ==="
-          echo "Site ZIP size:"
-          ls -lh ../site.zip
-
-      - name: Extract and prepare deploy
-        run: |
-          mkdir -p deploy-site
-          if [ ! -f site.zip ]; then
-            echo "ERROR: site.zip not found!"
-            ls -la
+          if [ ! -d build ]; then
+            echo "Error: build/ directory was not created."
             exit 1
           fi
-          echo "Unzipping site.zip..."
-          unzip -o site.zip -d deploy-site/
-          rm -f site.zip
-          echo "=== Deploy site contents ==="
-          echo "Files in deploy-site: $(find deploy-site -type f | wc -l)"
-          find deploy-site -maxdepth 2 -type d | sort
-          echo "--- Top-level files ---"
-          find deploy-site -maxdepth 1 -type f | head -20
-          echo "--- HTML files ---"
-          find deploy-site -name "*.html" -type f | head -20
+          echo "Build files: $(find build -type f | wc -l)"
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Publish to zh-prod branch for Mintlify Cloud
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: deploy-site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build
+          publish_branch: zh-prod
