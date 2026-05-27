@@ -1,0 +1,143 @@
+---
+title: 概述
+description: 在每一步控制和自定义 agent 执行
+---
+
+Middleware 提供了一种更精细地控制 agent 内部执行过程的方式。Middleware 适用于以下场景：
+
+- 通过日志记录、分析和调试来追踪 agent 行为。
+- 转换提示词、[工具选择](/oss/langchain/middleware/built-in#llm-tool-selector)和输出格式。
+- 添加[重试](/oss/langchain/middleware/built-in#tool-retry)、[回退](/oss/langchain/middleware/built-in#model-fallback)和提前终止逻辑。
+- 应用[速率限制](/oss/langchain/middleware/built-in#model-call-limit)、护栏和[PII 检测](/oss/langchain/middleware/built-in#pii-detection)。
+
+:::python
+通过将 middleware 传递给 @[`create_agent`] 来添加它们：
+
+```python
+from langchain.agents import create_agent
+from langchain.agents.middleware import SummarizationMiddleware, HumanInTheLoopMiddleware
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[...],
+    middleware=[
+        SummarizationMiddleware(...),
+        HumanInTheLoopMiddleware(...)
+    ],
+)
+```
+:::
+
+:::js
+通过将 middleware 传递给 `createAgent` 来添加它们：
+
+```typescript
+import {
+  createAgent,
+  summarizationMiddleware,
+  humanInTheLoopMiddleware,
+} from "langchain";
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [...],
+  middleware: [summarizationMiddleware, humanInTheLoopMiddleware],
+});
+```
+:::
+
+## Agent 循环
+
+核心 agent 循环涉及调用模型，让它选择要执行的工具，然后在它不再调用任何工具时结束：
+
+<img
+    src="/oss/images/core_agent_loop.png"
+    alt="核心 agent 循环示意图"
+    style={{height: "200px", width: "auto", justifyContent: "center"}}
+    className="rounded-lg block mx-auto"
+/>
+
+Middleware 在上述每个步骤之前和之后暴露钩子：
+
+<img
+    src="/oss/images/middleware_final.png"
+    alt="Middleware 流程图"
+    style={{height: "300px", width: "auto", justifyContent: "center"}}
+    className="rounded-lg mx-auto"
+/>
+
+## 在 LangGraph 工作流中使用 middleware
+
+Middleware 不是一个单独的运行时：钩子在 @[`create_agent`] 返回的已编译 [LangGraph](/oss/langgraph/overview) 内部运行。你可以将整个 agent（包括所有 middleware）作为节点或子图放入更大的 @[StateGraph] 中，每个 middleware 钩子都会继续运行。
+
+当周围的拓扑结构不仅仅是标准的"循环直到完成"时，可以使用这种模式：在路由到多个 agent 之前对输入进行分类、并行分发工作、或者将 agent 调用与确定性步骤串联在一起。
+
+`HumanInTheLoopMiddleware` 会匹配每个工具的 `.name`。在 Python 中，`@tool` 装饰的函数以其函数名作为名称（因此下面的键是 `"send_email"`）；在 TypeScript 中，键与你传递给 `tool({...}, { name })` 的 `name` 相匹配。
+
+:::python
+```python
+from langchain.agents import AgentState, create_agent
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langgraph.graph import START, StateGraph
+
+# 假设 read_email、send_email、classify_node 和 route 在其他地方定义。
+email_agent = create_agent(
+    model="claude-sonnet-4-6",
+    tools=[read_email, send_email],
+    middleware=[HumanInTheLoopMiddleware(interrupt_on={"send_email": True})],
+)
+
+graph = (
+    StateGraph(AgentState)
+    .add_node("classify", classify_node)
+    .add_node("email_agent", email_agent)
+    .add_edge(START, "classify")
+    .add_conditional_edges("classify", route)
+    .compile()
+)
+```
+:::
+
+:::js
+```typescript
+import { AgentState, createAgent, humanInTheLoopMiddleware } from "langchain";
+import { StateGraph, START } from "@langchain/langgraph";
+
+// 假设 readEmail、sendEmail、classifyNode 和 route 在其他地方定义。
+// readEmail / sendEmail 注册时名称为 "read_email" / "send_email"。
+const emailAgent = createAgent({
+  model: "claude-sonnet-4-6",
+  tools: [readEmail, sendEmail],
+  middleware: [humanInTheLoopMiddleware({ interruptOn: { send_email: true } })],
+});
+
+const graph = new StateGraph(AgentState)
+  .addNode("classify", classifyNode)
+  .addNode("emailAgent", emailAgent)
+  .addEdge(START, "classify")
+  .addConditionalEdges("classify", route)
+  .compile();
+```
+:::
+
+HITL 中断、摘要、PII 脱敏、重试以及任何自定义钩子都会随 agent 节点一起携带。有关完整的组合模式，包括子图检查点作用域（每次调用 vs 每个线程），请参阅[使用子图](/oss/langgraph/use-subgraphs)。
+
+## 其他资源
+
+<CardGroup cols={2}>
+    <Card title="内置 middleware" icon="box" href="/oss/langchain/middleware/built-in">
+        探索用于常见用例的内置 middleware。
+    </Card>
+    <Card title="自定义 middleware" icon="code" href="/oss/langchain/middleware/custom">
+        使用钩子和装饰器构建你自己的 middleware。
+    </Card>
+    <Card title="Middleware API 参考" icon="book" href="https://reference.langchain.com/python/langchain/middleware/">
+        Middleware 的完整 API 参考。
+    </Card>
+    <Card title="Middleware 集成" icon="plug" href="/oss/integrations/middleware/">
+        针对 Anthropic、AWS、OpenAI 等的供应商特定 middleware。
+    </Card>
+    <Card title="测试 agent" icon="scale" href="/oss/langchain/test/">
+        使用 LangSmith 测试你的 agent。
+    </Card>
+</CardGroup>

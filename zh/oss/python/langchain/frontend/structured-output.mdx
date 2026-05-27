@@ -1,0 +1,108 @@
+---
+title: 前端结构化输出
+description: 从模型生成类型化响应以实现可靠的 UI 渲染
+---
+
+结构化输出允许你指定 LLM 响应的格式，确保 agent 以可预测的结构化格式返回数据。这使前端能够可靠地渲染复杂数据，而不必依赖不可预测的自由文本。
+
+## 它是如何工作的
+
+你可以定义一个描述所需响应格式的模式。Agent 使用此模式生成结构化的、类型化的输出。
+
+:::python
+```python
+from pydantic import BaseModel, Field
+from langchain.agents import create_agent
+
+
+class WeatherResponse(BaseModel):
+    temperature: float = Field(description="摄氏温度")
+    conditions: str = Field(description="天气状况描述")
+    humidity: float = Field(description="百分比湿度")
+    wind_speed: float = Field(description="公里/小时风速")
+
+agent = create_agent(
+    model="gpt-5.4",
+)
+
+response = agent.invoke(
+    {
+        "messages": [{"role": "user", "content": "旧金山的天气怎么样？"}],
+        "output_schema": WeatherResponse,
+    }
+)
+
+# 响应现在匹配 WeatherResponse 模式
+print(response["messages"][-1].content)
+# {"temperature": 18.5, "conditions": "Partly cloudy", "humidity": 65.0, "wind_speed": 15.0}
+```
+:::
+
+:::js
+```typescript
+import { z } from "zod";
+import { createAgent } from "langchain";
+
+const WeatherResponse = z.object({
+  temperature: z.number().describe("摄氏温度"),
+  conditions: z.string().describe("天气状况描述"),
+  humidity: z.number().describe("百分比湿度"),
+  windSpeed: z.number().describe("公里/小时风速"),
+});
+
+const agent = createAgent({
+  model: "gpt-5.4",
+});
+
+const response = await agent.invoke({
+  messages: [{ role: "user", content: "旧金山的天气怎么样？" }],
+  outputSchema: WeatherResponse,
+});
+
+// 响应现在匹配 WeatherResponse 模式
+console.log(response.messages[response.messages.length - 1].content);
+// {"temperature": 18.5, "conditions": "Partly cloudy", "humidity": 65.0, "windSpeed": 15.0}
+```
+:::
+
+## 支持的类型
+
+结构化输出支持多种类型，包括：
+
+- 标量类型（字符串、数字、布尔值）
+- 数组和列表
+- 嵌套对象
+- 可选字段
+- 枚举
+
+## 如何在 UI 中渲染结构化输出
+
+结构化输出可以映射到 UI 组件，而无需文本解析：
+
+```jsx
+// 概念性的 React 组件
+function StructuredResponse({ content, schema }) {
+  const data = JSON.parse(content);
+
+  switch (schema) {
+    case "weather":
+      return <WeatherCard data={data} />;
+    case "search_results":
+      return <SearchResults items={data.results} />;
+    case "analytics":
+      return <AnalyticsChart data={data} />;
+    default:
+      return <pre>{content}</pre>;
+  }
+}
+```
+
+通过为每种响应类型定义专用组件，你可以创建用户体验一致的丰富交互式界面。
+
+## 结构化输出的最佳实践
+
+- **使用清晰的模式名称**：使你的模式描述性够强，以便模型选择正确的模式。
+- **包含描述**：为字段添加描述以指导模型生成正确的值。
+- **从简单开始**：从基本类型开始，需要时再添加复杂性。
+- **验证输出**：即使使用结构化输出，也要在前端验证数据。
+- **处理错误**：优雅地处理模型无法生成匹配输出的情况。

@@ -1,0 +1,482 @@
+---
+title: 事件流式传输
+description: 从 LangChain 代理运行中流式传输实时更新
+---
+
+LangChain 代理基于 LangGraph 构建，因此它们支持相同的流式传输栈，并提供面向代理的消息、工具调用、状态和自定义更新的投影。
+
+对于大多数应用和前端用例，使用 **事件流式传输**，通过 `stream_events(..., version="v3")`。事件流式传输返回一个带有类型化投影的运行对象，因此每个投影可以独立消费，而无需解析流模式元组。
+
+:::python
+```py
+from langchain.agents import create_agent
+
+
+def get_weather(city: str) -> str:
+    """Get weather for a city."""
+    return f"It's always sunny in {city}!"
+
+
+agent = create_agent(
+    model="gpt-5-nano",
+    tools=[get_weather],
+)
+
+stream = agent.stream_events({
+    "messages": [{"role": "user", "content": "What is the weather in SF?"}],
+}, version="v3")
+
+for message in stream.messages:
+    for delta in message.text:
+        print(delta, end="", flush=True)
+
+final_state = stream.output
+```
+:::
+
+:::js
+```ts
+import { createAgent, tool } from "langchain";
+import * as z from "zod";
+
+const getWeather = tool(
+  async ({ city }) => `It's always sunny in ${city}!`,
+  {
+    name: "get_weather",
+    description: "Get weather for a city.",
+    schema: z.object({ city: z.string() }),
+  }
+);
+
+const agent = createAgent({
+  model: "gpt-5-nano",
+  tools: [getWeather],
+});
+
+const stream = await agent.streamEvents(
+  { messages: [{ role: "user", content: "What is the weather in SF?" }] },
+  { version: "v3" }
+);
+
+for await (const message of stream.messages) {
+  for await (const delta of message.text) {
+    process.stdout.write(delta);
+  }
+}
+
+const finalState = await stream.output;
+```
+:::
+
+## 可以流式传输的内容
+
+:::python
+| 投影 | 用途 |
+| ---------- | --- |
+| `for event in stream` | 原始协议事件，包含完整信封并可访问所有通道。 |
+| `stream.messages` | 模型消息流，每次 LLM 调用一个。 |
+| `message.text` | 消息的文本增量和最终文本。 |
+| `message.reasoning` | 对于暴露推理内容的模型的推理增量。 |
+| `message.tool_calls` | 工具调用参数块和最终化的工具调用。 |
+| `message.output` | 模型调用完成后的最终消息对象。 |
+| `stream.values` | 代理状态快照。 |
+| `stream.output` | 最终代理状态。 |
+| `stream.subgraphs` | 嵌套图运行（子代理和普通子图）。 |
+| `stream.extensions` | 自定义转换器投影。 |
+| `stream.tool_calls` | 工具执行生命周期、输入、输出增量、最终输出和错误。 |
+:::
+
+:::js
+| 投影 | 用途 |
+| ---------- | --- |
+| `for event in stream` | 原始协议事件，包含完整信封并可访问所有通道。 |
+| `stream.messages` | 模型消息流，每次 LLM 调用一个。 |
+| `message.text` | 消息的文本增量和最终文本。 |
+| `message.reasoning` | 对于暴露推理内容的模型的推理增量。 |
+| `message.toolCalls` | 工具调用参数块和最终化的工具调用。 |
+| `message.output` | 模型调用完成后的最终消息对象。 |
+| `message.usage` | 当提供商返回时的令牌使用元数据。 |
+| `stream.values` | 代理状态快照。 |
+| `stream.output` | 最终代理状态。 |
+| `stream.subgraphs` | 嵌套图运行（子代理和普通子图）。 |
+| `stream.extensions` | 自定义转换器投影。 |
+| `stream.toolCalls` | 工具执行生命周期、输入、输出增量、最终输出和错误。 |
+:::
+
+:::python
+`stream.messages` 生成 `ChatModelStream` 对象。每个消息流暴露 `.text`、`.reasoning`、`.tool_calls` 和 `.output`。同步投影可迭代以获取实时增量，也可排空以获取最终值：使用 `str(message.text)` 获取最终文本，使用 `message.tool_calls.get()` 获取最终化的工具调用。
+:::
+
+:::js
+`stream.messages` 生成消息流。每个消息流暴露 `.text`、`.reasoning`、`.toolCalls`、`.output` 和 `.usage`。异步投影可以迭代以获取实时增量，也可以等待以获取最终值。
+:::
+
+## 代理消息
+
+当你想获取每次 LLM 调用的模型输出时，使用 `stream.messages`。
+
+:::python
+```py
+stream = agent.stream_events(input, version="v3")
+
+for message in stream.messages:
+    print(f"[{message.node}] ", end="")
+    for delta in message.text:
+        print(delta, end="", flush=True)
+
+    full_message = message.output
+    usage = full_message.usage_metadata
+    if usage:
+        print(usage)
+```
+:::
+
+:::js
+```ts
+const stream = await agent.streamEvents(input, { version: "v3" });
+
+for await (const message of stream.messages) {
+  process.stdout.write(`[${message.node}] `);
+  for await (const delta of message.text) {
+    process.stdout.write(delta);
+  }
+
+  const fullMessage = await message.output;
+  console.log(fullMessage.content);
+
+  const usage = await message.usage;
+  if (usage) {
+    console.log(usage);
+  }
+}
+```
+:::
+
+`message.output` 提供最终化的 AI 消息，包括特定于提供商的内容块。在 TypeScript 中，当你只需要令牌计数或其他使用元数据时，使用 `message.usage`；在 Python 中，从 `message.output.usage_metadata` 读取使用信息。
+
+## 推理内容
+
+推理内容使用与文本内容相同的形状，但仅当所选模型发出推理块时才可用。
+
+:::python
+```py
+stream = agent.stream_events(input, version="v3")
+
+for message in stream.messages:
+    for delta in message.reasoning:
+        print(f"[thinking] {delta}", end="", flush=True)
+
+    for delta in message.text:
+        print(delta, end="", flush=True)
+```
+:::
+
+:::js
+```ts
+const stream = await agent.streamEvents(input, { version: "v3" });
+
+for await (const message of stream.messages) {
+  for await (const delta of message.reasoning) {
+    process.stdout.write(`[thinking] ${delta}`);
+  }
+
+  for await (const delta of message.text) {
+    process.stdout.write(delta);
+  }
+}
+```
+:::
+
+请参阅[推理指南](/oss/langchain/models#reasoning)和您的提供商集成页面以获取模型配置详情。
+
+## 工具调用
+
+有两个有用的工具调用投影：
+
+- `message.tool_calls` 在模型生成工具调用时流式传输工具调用参数块。
+- `stream.tool_calls` 在工具调用开始后流式传输工具执行的生命周期。
+
+:::python
+```py
+stream = agent.stream_events(input, version="v3")
+
+for message in stream.messages:
+    for chunk in message.tool_calls:
+        print(f"tool call chunk: {chunk}")
+
+    finalized = message.tool_calls.get()
+    if finalized:
+        print(f"finalized tool calls: {finalized}")
+
+for call in stream.tool_calls:
+    print(f"{call.tool_name}({call.input})")
+    for delta in call.output_deltas:
+        print(delta, end="", flush=True)
+    print(call.output, call.error)
+```
+:::
+
+:::js
+```ts
+const stream = await agent.streamEvents(input, { version: "v3" });
+
+await Promise.all([
+  (async () => {
+    for await (const message of stream.messages) {
+      for await (const chunk of message.toolCalls) {
+        console.log("tool call chunk", chunk);
+      }
+    }
+  })(),
+  (async () => {
+    for await (const call of stream.toolCalls) {
+      console.log(call.name, call.input);
+      console.log(await call.output, await call.error);
+    }
+  })(),
+]);
+```
+:::
+
+## 流式传输子代理
+
+当 `create_agent` 调用另一个 `create_agent`（通常通过包装工具）时，内部代理的事件在嵌套命名空间中流动，并通过 `stream.subgraphs` 上的句柄呈现。每个句柄暴露内部代理自己的 `.messages`、`.values`、`.tool_calls` 和 `.output` 投影。你传递给 `create_agent` 的 `name=` 成为 `subagent.graph_name`（Python）/ `subagent.name`（JS），这让你可以按代理进行过滤和标记。
+
+每个嵌套的 `CompiledStateGraph` 都会出现在 `stream.subgraphs` 上——`create_agent` 实例是其中一种特定类型。按名称过滤以仅对你关心的代理进行操作。
+
+:::python
+```py
+from langchain.agents import create_agent
+from langchain.chat_models import init_chat_model
+
+
+def get_weather(city: str) -> str:
+    """Get weather for a given city."""
+    return f"It's always sunny in {city}!"
+
+
+weather_agent = create_agent(
+    model=init_chat_model("openai:gpt-5.4"),
+    tools=[get_weather],
+    name="weather_agent",
+)
+
+
+def call_weather(query: str) -> str:
+    """Query the weather agent."""
+    result = weather_agent.invoke({"messages": [{"role": "user", "content": query}]})
+    return result["messages"][-1].text
+
+
+supervisor = create_agent(
+    model=init_chat_model("openai:gpt-5.4"),
+    tools=[call_weather],
+    name="supervisor",
+)
+
+stream = supervisor.stream_events(
+    {"messages": [{"role": "user", "content": "What's the weather in Boston?"}]},
+    version="v3",
+)
+
+for subagent in stream.subgraphs:
+    if subagent.graph_name != "weather_agent":
+        continue
+    print(f"{subagent.graph_name}: ", end="")
+    for message in subagent.messages:
+        for token in message.text:
+            print(token, end="", flush=True)
+    print()
+```
+:::
+
+:::js
+```ts
+import { createAgent, tool } from "langchain";
+import { z } from "zod";
+
+const getWeather = tool(
+  async ({ city }) => `It's always sunny in ${city}!`,
+  { name: "get_weather", schema: z.object({ city: z.string() }) }
+);
+
+const weatherAgent = createAgent({
+  model: "openai:gpt-5.4",
+  tools: [getWeather],
+  name: "weather_agent",
+});
+
+const callWeather = tool(
+  async ({ query }) => {
+    const result = await weatherAgent.invoke({
+      messages: [{ role: "user", content: query }],
+    });
+    return result.messages.at(-1)?.text ?? "";
+  },
+  { name: "call_weather", schema: z.object({ query: z.string() }) }
+);
+
+const supervisor = createAgent({
+  model: "openai:gpt-5.4",
+  tools: [callWeather],
+  name: "supervisor",
+});
+
+const stream = await supervisor.streamEvents(
+  { messages: [{ role: "user", content: "What's the weather in Boston?" }] },
+  { version: "v3" }
+);
+
+for await (const subagent of stream.subgraphs) {
+  if (subagent.name !== "weather_agent") continue;
+  process.stdout.write(`${subagent.name}: `);
+  for await (const message of subagent.messages) {
+    for await (const token of message.text) {
+      process.stdout.write(token);
+    }
+  }
+  process.stdout.write("\n");
+}
+```
+:::
+
+同样的投影也涵盖了从工具中调用的普通 `StateGraph` 子图——在 `.compile(name=...)` 上设置 `name=` 以在 `subagent.graph_name` 中获取标签。没有单独的子代理专用投影；你在循环中写入过滤逻辑即可。
+
+## 状态和最终输出
+
+使用 `stream.values` 获取状态快照，使用 `stream.output` 获取最终代理状态。
+
+:::python
+```py
+stream = agent.stream_events(input, version="v3")
+
+for snapshot in stream.values:
+    print(snapshot)
+
+final_state = stream.output
+```
+:::
+
+:::js
+```ts
+const stream = await agent.streamEvents(input, { version: "v3" });
+
+for await (const snapshot of stream.values) {
+  console.log(snapshot);
+}
+
+const finalState = await stream.output;
+```
+:::
+
+## 多投影
+
+:::python
+对于异步代码中的并发消费，使用 `astream_events` 配合 `asyncio.gather`：
+
+```py
+import asyncio
+
+stream = await agent.astream_events(input, version="v3")
+
+async def consume_messages():
+    async for message in stream.messages:
+        print(await message.text)
+
+async def consume_tool_calls():
+    async for call in stream.tool_calls:
+        print(call.tool_name, call.input)
+
+await asyncio.gather(consume_messages(), consume_tool_calls())
+```
+
+对于同步代码，使用 `stream.interleave(...)`：
+
+```py
+stream = agent.stream_events(input, version="v3")
+
+for name, item in stream.interleave("messages", "tool_calls", "values"):
+    if name == "messages":
+        print(item.text)
+    elif name == "tool_calls":
+        print(item.tool_name, item.input)
+    elif name == "values":
+        print(item)
+```
+:::
+
+:::js
+当你想在 JavaScript 中获取多个投影时，使用并发消费者：
+
+```ts
+const stream = await agent.streamEvents(input, { version: "v3" });
+
+await Promise.all([
+  (async () => {
+    for await (const message of stream.messages) {
+      console.log(await message.text);
+    }
+  })(),
+  (async () => {
+    for await (const call of stream.toolCalls) {
+      console.log(call.name, call.input);
+    }
+  })(),
+]);
+```
+:::
+
+要访问未作为类型化投影暴露的通道，或检查完整的事件信封，请迭代原始协议事件：
+
+:::python
+```py
+for event in stream:
+    print(event["method"], event["params"]["namespace"], event["params"]["data"])
+```
+:::
+
+:::js
+```ts
+for await (const event of stream) {
+  console.log(event.method, event.params.namespace, event.params.data);
+}
+```
+:::
+
+## 自定义更新
+
+当你的应用需要内置投影未提供的功能时，使用自定义流转换器，例如检索进度、工件或领域特定事件。
+
+:::python
+```py
+stream = agent.stream_events(
+    input,
+    version="v3",
+    transformers=[ToolActivityTransformer],
+)
+
+for activity in stream.extensions["tool_activity"]:
+    print(activity)
+```
+:::
+
+:::js
+```ts
+const stream = await agent.streamEvents(input, {
+  version: "v3",
+  transformers: [toolActivityTransformer],
+});
+
+for await (const activity of stream.extensions.toolActivity) {
+  console.log(activity);
+}
+```
+:::
+
+请参阅[构建自己的投影](/oss/langgraph/event-streaming#build-your-own-projection)了解转换器约定。
+
+## 相关
+
+- [流式传输](/oss/langchain/streaming) 涵盖了低层级的 Pregel 流模式。
+- [构建自己的投影](/oss/langgraph/event-streaming#build-your-own-projection) 涵盖了编写应用特定的投影。
+- [前端流式传输模式](/oss/langchain/frontend/overview) 展示了基于流式状态的 UI 用例。

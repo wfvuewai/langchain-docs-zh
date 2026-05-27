@@ -1,0 +1,362 @@
+---
+title: 检索
+description: 使用检索增强生成（RAG）为你的代理提供外部知识
+---
+
+检索增强生成（RAG）是一种在推理时检索相关文档并将它们注入代理的模型上下文中以增强其知识的技术。
+
+这允许代理访问及时的外部知识，超越其训练数据中的参数化记忆。
+
+要使用 RAG，你需要：
+
+1. **摄取**：在外部存储中索引文档
+2. **检索**：根据用户查询获取最相关的文档
+3. **注入**：将检索到的文档添加到提示中，以便代理在推理时使用它们
+
+## 文档索引
+
+第一是摄取：你需要在向量存储中索引文档，以便可以在推理时检索它们。这包括加载文档、将其拆分为块、嵌入每个块，以及将嵌入存储在向量数据库中。
+
+### 加载和拆分
+
+在索引之前，将文档加载到内存中并将其拆分为更小的块。
+
+:::python
+LangChain 为各种文档格式和来源提供了许多[文档加载器](/oss/python/integrations/language/document-loaders)。请参阅[文档加载器集成](/oss/python/integrations/language/document-loaders)以获取可用加载器的完整列表。
+
+```python
+from langchain_community.document_loaders import TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# 加载文档
+loader = TextLoader("path/to/document.txt")
+documents = loader.load()
+
+# 拆分为块
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=200,
+)
+chunks = text_splitter.split_documents(documents)
+```
+:::
+
+:::js
+LangChain 为各种文档格式和来源提供了许多[文档加载器](/oss/javascript/integrations/general/document-loaders)。请参阅[文档加载器集成](/oss/javascript/integrations/general/document-loaders)以获取可用加载器的完整列表。
+
+```typescript
+import { TextLoader } from "langchain/document_loaders/fs/text";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+
+// Load document
+const loader = new TextLoader("path/to/document.txt");
+const documents = await loader.load();
+
+// Split into chunks
+const textSplitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+const chunks = await textSplitter.splitDocuments(documents);
+```
+:::
+
+### 嵌入和存储
+
+拆分后，使用嵌入模型为每个块生成向量嵌入，并将它们存储在向量存储中。
+
+:::python
+请参阅[嵌入模型集成](/oss/python/integrations/language/embedding-models)以获取可用嵌入模型的完整列表。
+
+```python
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import InMemoryVectorStore
+
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+vector_store = InMemoryVectorStore(embeddings)
+vector_store.add_documents(chunks)
+```
+:::
+
+:::js
+请参阅[嵌入模型集成](/oss/javascript/integrations/general/embedding-models)以获取可用嵌入模型的完整列表。为了简单起见，以下示例使用内存向量存储：
+
+```typescript
+import { OpenAIEmbeddings } from "@langchain/openai";
+import { InMemoryVectorStore } from "@langchain/core/vectorstores";
+
+const embeddings = new OpenAIEmbeddings({
+  model: "text-embedding-3-small",
+});
+const vectorStore = new InMemoryVectorStore(embeddings);
+await vectorStore.addDocuments(chunks);
+```
+:::
+
+<Note>
+    生产环境使用——上面的 `InMemoryVectorStore` 适用于原型设计。对于生产环境，请使用像 [MongoDB](/oss/python/integrations/vector-stores/mongodb)、[Supabase](/oss/python/integrations/vector-stores/supabase)、[Pinecone](/oss/python/integrations/vector-stores/pinecone) 或[其他受支持的向量存储集成](/oss/python/integrations/vector-stores)之一。
+</Note>
+
+## 注入到代理中
+
+一旦你的文档被索引，你就可以创建检索工具、中间件来执行检索，或者直接在提示中注入上下文。相关数据的注入可以通过以下三种方式之一完成：
+
+1. **将检索器暴露为工具**：让代理自行决定何时检索
+2. **查询时重写**：在每次调用前将用户查询重写为搜索友好的格式
+3. **注入提示**：在每次调用前始终将上下文注入到提示中
+
+### 选项 1：将检索器暴露为工具
+
+最简单的方法是将向量存储包装为工具。这使代理能够自主决定何时需要检索外部知识。
+
+:::python
+```python
+from langchain.tools import tool
+
+
+@tool
+def search_documents(query: str) -> str:
+    """搜索文档数据库以查找相关信息。"""
+    results = vector_store.similarity_search(query, k=3)
+    return "\n\n".join(doc.page_content for doc in results)
+
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[search_documents],
+)
+```
+:::
+
+:::js
+```typescript
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const searchDocuments = tool(
+  async ({ query }) => {
+    const results = await vectorStore.similaritySearch(query, 3);
+    return results.map(doc => doc.pageContent).join("\n\n");
+  },
+  {
+    name: "search_documents",
+    description: "Search document database for relevant information.",
+    schema: z.object({
+      query: z.string().describe("The search query"),
+    }),
+  }
+);
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [searchDocuments],
+});
+```
+:::
+
+这种方法的好处是代理只有在必要时才检索，从而节省令牌和时间。缺点是代理可能选择不检索，即使应该检索——模型可能会完全忽略工具或尝试回答它不熟悉的问题而不是检索。
+
+### 选项 2：查询时重写
+
+在每次调用前动态重写用户查询，以生成更有效的搜索查询。使用[中间件](/oss/langchain/middleware)在将检索内容注入上下文的同一位置插入重写的查询。
+
+:::python
+```python
+from langchain.agents.middleware import rewrite_user_message
+
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[search_documents],
+    middleware=[rewrite_user_message(
+        model="gpt-5.4-mini",
+        instruction="将用户消息重写为简洁的搜索查询。",
+    )],
+)
+```
+:::
+
+:::js
+```typescript
+import { rewriteUserMessage } from "langchain/middleware";
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [searchDocuments],
+  middleware: [
+    rewriteUserMessage({
+      model: "gpt-5.4-mini",
+      instruction: "Rewrite the user message as a concise search query.",
+    }),
+  ],
+});
+```
+:::
+
+### 选项 3：注入提示
+
+在每次模型调用前始终注入检索到的文档。使用 `dynamic_prompt` 在代理的系统提示中包含检索到的上下文。
+
+:::python
+```python
+from langchain.agents.middleware import dynamic_prompt
+
+
+def rag_prompt(state, runtime):
+    query = state["messages"][-1].content
+    docs = vector_store.similarity_search(query, k=3)
+    context = "\n\n".join(doc.page_content for doc in docs)
+    return f"使用以下上下文回答用户的问题：\n\n{context}"
+
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[],
+    middleware=[dynamic_prompt(rag_prompt)],
+)
+```
+:::
+
+:::js
+```typescript
+import { dynamicSystemPromptMiddleware } from "langchain/middleware";
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [],
+  middleware: [
+    dynamicSystemPromptMiddleware(async (state, runtime) => {
+      const query = state.messages[state.messages.length - 1].content.toString();
+      const docs = await vectorStore.similaritySearch(query, 3);
+      const context = docs.map(doc => doc.pageContent).join("\n\n");
+      return `Use the following context to answer the user's question:\n\n${context}`;
+    }),
+  ],
+});
+```
+:::
+
+这保证了上下文始终可用，但即使不需要检索也会消耗令牌。对于简单或不需要检索的查询，这通常会降低结果质量并增加成本。
+
+## 检索策略
+
+检索的表现取决于你的嵌入与文档内容以及检索算法的匹配程度。以下部分涵盖了常用的检索策略。
+
+### 语义搜索
+
+语义搜索使用嵌入相似性来查找相关文档。它在概念匹配比精确关键词匹配更重要的情况下效果最好。
+
+:::python
+```python
+results = vector_store.similarity_search(
+    "agent memory systems",
+    k=5,
+)
+```
+:::
+
+:::js
+```typescript
+const results = await vectorStore.similaritySearch(
+  "agent memory systems",
+  5,
+);
+```
+:::
+
+对于处理多语言或异构内容的文档，Mmr 搜索或过滤选项在初始全面搜索后提供了额外的控制层。
+
+### 元数据过滤
+
+元数据过滤允许你根据文档属性（如来源、日期或类别）缩小搜索结果范围。在结构化搜索（例如，搜索特定来源或日期范围内的文档）中很有用。
+
+:::python
+元数据过滤的语法因向量存储后端而异。例如，使用 InMemoryVectorStore：
+
+```python
+results = vector_store.similarity_search(
+    "agent systems",
+    filter={"source": "research_papers", "year": {"$gte": 2024}},
+)
+```
+:::
+
+:::js
+元数据过滤的语法因向量存储后端而异。例如，使用 InMemoryVectorStore：
+
+```typescript
+const results = await vectorStore.similaritySearch(
+  "agent systems",
+  5,
+  { source: "research_papers", year: { $gte: 2024 } },
+);
+```
+:::
+
+### 最大边际相关性（MMR）
+
+MMR 通过结合相关性和多样性对结果进行重新排序。它确保检索到的文档彼此不同，同时与查询保持相关。
+
+```python
+results = vector_store.max_marginal_relevance_search(
+    "agent memory systems",
+    k=5,
+    fetch_k=20,  # 初始检索更多候选项
+    lambda_mult=0.5,  # 介于 0（多样性）和 1（相关性）之间
+)
+```
+
+### 混合搜索（推荐）
+
+混合搜索结合了语义搜索和关键词搜索以改善检索质量。关键词搜索擅长精确匹配（名称、ID），而语义搜索捕获概念相关性。它们共同弥补了各自的弱点。
+
+```python
+# 使用 InMemoryVectorStore 的混合搜索示例
+results = vector_store.similarity_search(
+    query,
+    k=5,
+    search_type="hybrid",  # 结合语义和关键词搜索
+)
+```
+
+对于更高性能的设置，考虑使用专门的混合搜索实现，如 [Pinecone](https://docs.pinecone.io/guides/data/filter-with-metadata) 或 [Weaviate](https://weaviate.io/developers/weaviate/search/hybrid)。
+
+## 高级检索
+
+### 多查询检索
+
+对于复杂查询，生成多个视角的查询变体，聚合结果，并去重以提高覆盖率。
+
+```python
+from langchain.retrievers.multi_query import MultiQueryRetriever
+
+retriever = MultiQueryRetriever.from_llm(
+    retriever=vector_store.as_retriever(),
+    llm=model,  # 用于生成替代查询的 LLM
+)
+results = retriever.invoke("What are agent memory systems?")
+```
+
+### 父文档检索
+
+检索较小的块以获得精确匹配，但返回周围较大的块以获得更多上下文。这在精确性和上下文之间取得了平衡。
+
+```python
+from langchain.retrievers import ParentDocumentRetriever
+from langchain.storage import InMemoryStore
+
+parent_splitter = RecursiveCharacterTextSplitter(chunk_size=2000)
+child_splitter = RecursiveCharacterTextSplitter(chunk_size=400)
+
+retriever = ParentDocumentRetriever(
+    vectorstore=vector_store,
+    docstore=InMemoryStore(),
+    child_splitter=child_splitter,
+    parent_splitter=parent_splitter,
+)
+```
+
+## 下一步
+
+- 探索[集成](/oss/integrations/retrieval)以获取更多检索方法和向量存储
+- 查看 LangGraph 的[检索代理指南](https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_agentic_rag/)以获取高级实现模式

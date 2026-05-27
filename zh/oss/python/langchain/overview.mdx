@@ -1,0 +1,499 @@
+---
+title: LangChain 概述
+sidebarTitle: 概述
+description: LangChain 是一个开源框架，提供预构建的智能体架构和适用于任何模型或工具的集成——让你能够构建随着生态演进而快速适配的智能体
+---
+
+在 10 行代码以内构建完全自定义的 LLM 驱动的智能体和应用，并集成了 [OpenAI、Anthropic、Google 等](/oss/integrations/providers/overview)。
+LangChain 提供预构建的智能体架构和模型集成，帮助你快速上手，将 LLM 无缝集成到你的智能体和应用中。
+
+<Tip>
+**LangChain vs. LangGraph vs. Deep Agents**
+
+如果你想要一个"开箱即用"的智能体，具备自动上下文压缩、虚拟文件系统和子智能体生成等功能，请从 [Deep Agents](/oss/deepagents/overview/) 开始。Deep Agents 构建于 LangChain [agents](/oss/langchain/agents/) 之上，你也可以直接使用 LangChain。
+
+如需更高级的需求，将确定性与智能体工作流相结合，请使用我们的底层编排框架 [LangGraph](/oss/langgraph/overview)。
+
+使用 [LangSmith](/langsmith/home) 来追踪、调试和评估使用上述任一框架构建的智能体。按照 [追踪快速开始](/langsmith/trace-with-langchain) 进行设置。
+</Tip>
+
+<Tip>
+  [LangSmith Engine](/langsmith/engine) 可以检测你的 LangChain 智能体追踪中的问题并提出修复方案。你可以直接从 Engine 标签页提交包含建议修复内容的 Pull Request。
+</Tip>
+
+## <Icon icon="wand" /> 创建智能体
+
+:::python
+<CodeGroup>
+    ```python OpenAI
+    # pip install -qU langchain "langchain[openai]"
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="openai:gpt-5.4",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python Google Gemini
+    # pip install -qU langchain "langchain[google-genai]"
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="google_genai:gemini-2.5-flash-lite",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python Claude (Anthropic)
+    # pip install -qU langchain "langchain[anthropic]"
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="claude-sonnet-4-6",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python OpenRouter
+    # pip install -qU langchain langchain-openrouter
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="openrouter:anthropic/claude-sonnet-4-6",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python Fireworks
+    # pip install -qU langchain langchain-fireworks
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="fireworks:accounts/fireworks/models/qwen3p5-397b-a17b",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python Baseten
+    # pip install -qU langchain langchain-baseten
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="baseten:zai-org/GLM-5",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python Ollama
+    # pip install -qU langchain langchain-ollama
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="ollama:devstral-2",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python Azure
+    # pip install -qU langchain "langchain[openai]"
+    import os
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="azure_openai:gpt-5.4",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+        azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"],
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python AWS Bedrock
+    # pip install -qU langchain langchain-aws
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="anthropic.claude-3-5-sonnet-20240620-v1:0",
+        model_provider="bedrock_converse",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+    ```python HuggingFace
+    # pip install -qU langchain "langchain[huggingface]"
+    from langchain.agents import create_agent
+
+    def get_weather(city: str) -> str:
+        """Get weather for a given city."""
+        return f"It's always sunny in {city}!"
+
+    agent = create_agent(
+        model="microsoft/Phi-3-mini-4k-instruct",
+        model_provider="huggingface",
+        tools=[get_weather],
+        system_prompt="You are a helpful assistant",
+        temperature=0.7,
+        max_tokens=1024,
+    )
+
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What's the weather in San Francisco?"}]}
+    )
+    print(result["messages"][-1].content_blocks)
+    ```
+</CodeGroup>
+:::
+
+:::js
+<CodeGroup>
+    ```ts OpenAI
+    // First install: npm install langchain zod @langchain/openai
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "gpt-5.4",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+    ```ts Google Gemini
+    // First install: npm install langchain zod @langchain/google-genai
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "google-genai:gemini-2.5-flash-lite",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+    ```ts Claude (Anthropic)
+    // First install: npm install langchain zod @langchain/anthropic
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "claude-sonnet-4-6",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+    ```ts OpenRouter
+    // First install: npm install langchain zod @langchain/openrouter
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "openrouter:anthropic/claude-sonnet-4-6",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+    ```ts Fireworks
+    // First install: npm install langchain zod
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "fireworks:accounts/fireworks/models/qwen3p5-397b-a17b",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+    ```ts Baseten
+    // First install: npm install langchain zod
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "baseten:zai-org/GLM-5",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+    ```ts Ollama
+    // First install: npm install langchain zod @langchain/ollama
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "ollama:devstral-2",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+    ```ts Azure
+    // First install: npm install langchain zod @langchain/openai
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "azure_openai:gpt-5.4",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+    ```ts AWS Bedrock
+    // First install: npm install langchain zod @langchain/aws
+    import { createAgent, tool } from "langchain";
+    import * as z from "zod";
+
+    const getWeather = tool(
+      (input) => `It's always sunny in ${input.city}!`,
+      {
+        name: "get_weather",
+        description: "Get the weather for a given city",
+        schema: z.object({
+          city: z.string().describe("The city to get the weather for"),
+        }),
+      }
+    );
+
+    const agent = createAgent({
+      model: "bedrock:gpt-5.4",
+      tools: [getWeather],
+    });
+
+    console.log(
+      await agent.invoke({
+        messages: [{ role: "user", content: "What's the weather in San Francisco?" }],
+      })
+    );
+    ```
+</CodeGroup>
+:::
+
+请参阅[安装说明](/oss/langchain/install)和[快速开始指南](/oss/langchain/quickstart)，开始使用 LangChain 构建自己的智能体和应用。
+
+<Tip>
+使用 [LangSmith](/langsmith/home) 来追踪请求、调试智能体行为和评估输出。设置 `LANGSMITH_TRACING=true` 和你的 API 密钥即可开始。
+</Tip>
+
+## <Icon icon="star" size={20} /> 核心优势
+
+<Columns cols={2}>
+    <Card title="标准模型接口" icon="refresh" href="/oss/langchain/models" arrow cta="了解更多">
+        不同的提供商拥有各自独特的模型交互 API，包括响应的格式。LangChain 标准化了你与模型交互的方式，让你可以无缝切换提供商，避免锁定。
+    </Card>
+
+    <Card title="易用且高度灵活的智能体" icon="wand" href="/oss/langchain/agents" arrow cta="了解更多">
+        LangChain 的智能体抽象设计旨在易于上手，让你在 10 行代码以内构建一个简单的智能体。同时它也提供了足够的灵活性，让你能够随心所欲地进行上下文工程。
+    </Card>
+
+    <Card title="构建于 LangGraph 之上" icon="/images/brand/langgraph-icon.png" href="/oss/langgraph/overview" arrow cta="了解更多">
+        LangChain 的智能体构建于 LangGraph 之上。这使得我们能够利用 LangGraph 的持久化执行、人工介入支持、持久化等特性。
+    </Card>
+
+    <Card title="使用 LangSmith 调试" icon="/images/brand/observability-icon-dark.png" href="/langsmith/observability" arrow cta="了解更多">
+        通过可视化工具深入了解复杂的智能体行为，这些工具可以追踪执行路径、捕获状态转换并提供详细的运行时指标。
+    </Card>
+</Columns>

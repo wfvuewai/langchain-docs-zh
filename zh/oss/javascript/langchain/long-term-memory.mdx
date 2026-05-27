@@ -1,0 +1,251 @@
+---
+title: 长期记忆
+description: 为 LangChain 代理实现跨会话持久记忆
+---
+
+## 概述
+
+长期记忆允许代理在对话之间持久化信息，使其能够随着时间的推移记住用户偏好、提取的见解和历史数据。LangChain 代理使用 LangGraph 的 @[`BaseStore`] 接口来实现这一点，这是一种[键-值存储](https://langchain-ai.github.io/langgraph/concepts/memory/#memory-store)，支持基于命名空间的读写操作。
+
+<Tip>
+    不熟悉记忆？请从[概念概述](/oss/concepts/memory)开始，了解短期记忆（状态）和长期记忆（存储）之间的区别。
+</Tip>
+
+## 快速入门
+
+要为代理添加长期记忆，请使用描述性命名空间将所有持久化数据存储在一个键-值存储中。存储对代理中的[工具](/oss/langchain/tools)和[中间件](/oss/langchain/middleware)都是可访问的。
+
+:::python
+
+```python
+from langchain.agents import create_agent
+from langgraph.store.memory import InMemoryStore
+
+
+# 创建存储。这保存跨会话的长期数据。
+store = InMemoryStore()
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[...],
+    store=store,  # [!code highlight]
+)
+```
+
+:::
+
+:::js
+
+```typescript
+import { createAgent } from "langchain";
+import { InMemoryStore } from "@langchain/langgraph";
+
+// Create the store. This holds long-term data across sessions.
+const store = new InMemoryStore();
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [...],
+  store, // [!code highlight]
+});
+```
+
+:::
+
+接下来，你可以构建读取和写入存储的工具。长期记忆的强大之处在于你可以编写能检测到变化、提取结构化知识并在工具之间共享上下文的工具。
+
+:::python
+
+```python
+from langchain.tools import tool, ToolRuntime
+from dataclasses import dataclass
+
+@dataclass
+class Context:
+    user_id: str
+
+@tool
+def save_user_preference(
+    preference_key: str,
+    preference_value: str,
+    runtime: ToolRuntime[Context],
+) -> str:
+    """将用户偏好保存到存储中。"""
+    user_id = runtime.context.user_id
+    store = runtime.store
+
+    # 读取当前偏好
+    existing = store.get(("preferences",), user_id)
+    prefs = existing.value if existing else {}
+
+    # 合并新偏好
+    prefs[preference_key] = preference_value
+
+    # 写回存储
+    store.put(("preferences",), user_id, prefs)
+    return f"已将偏好 {preference_key} 保存为 {preference_value}"
+
+
+@tool
+def get_user_preferences(
+    runtime: ToolRuntime[Context],
+) -> str:
+    """从存储中获取所有用户偏好。"""
+    user_id = runtime.context.user_id
+    store = runtime.store
+    existing = store.get(("preferences",), user_id)
+    if existing:
+        return str(existing.value)
+    return "未找到偏好。"
+```
+
+:::
+
+:::js
+
+```typescript
+import { tool, ToolRuntime } from "@langchain/core/tools";
+import * as z from "zod";
+
+const contextSchema = z.object({
+  userId: z.string(),
+});
+
+const saveUserPreference = tool(
+  async ({ preferenceKey, preferenceValue }, runtime: ToolRuntime<any, typeof contextSchema>) => {
+    const userId = runtime.context.userId;
+    const store = runtime.store;
+
+    // Read current preferences
+    const existing = await store.get(["preferences"], userId);
+    const prefs: Record<string, string> = existing?.value ? { ...existing.value } : {};
+
+    // Merge new preference
+    prefs[preferenceKey] = preferenceValue;
+
+    // Write back to store
+    await store.put(["preferences"], userId, prefs);
+    return `Saved preference ${preferenceKey} as ${preferenceValue}`;
+  },
+  {
+    name: "save_user_preference",
+    description: "Save a user preference to the store.",
+    schema: z.object({
+      preferenceKey: z.string(),
+      preferenceValue: z.string(),
+    }),
+  }
+);
+
+const getUserPreferences = tool(
+  async (_, runtime: ToolRuntime<any, typeof contextSchema>) => {
+    const userId = runtime.context.userId;
+    const store = runtime.store;
+    const existing = await store.get(["preferences"], userId);
+    if (existing) {
+      return JSON.stringify(existing.value);
+    }
+    return "No preferences found.";
+  },
+  {
+    name: "get_user_preferences",
+    description: "Get all user preferences from the store.",
+    schema: z.object({}),
+  }
+);
+```
+
+:::
+
+## 在中间件中使用长期记忆
+
+[中间件](/oss/langchain/middleware) 也可以访问存储。这使你能够在不修改工具本身的情况下在上下文中注入记忆。例如，你可以创建一个中间件，自动读取用户的沟通风格偏好并将它们注入系统提示中，以便每个 LLM 调用都知道要使用的语气。
+
+:::python
+
+```python
+from langchain.agents.middleware import dynamic_prompt
+from langgraph.runtime import Runtime
+
+
+@dynamic_prompt
+def style_aware_prompt(runtime: Runtime) -> str:
+    """根据用户偏好调整系统提示。"""
+    user_id = runtime.context.user_id
+
+    # 从存储中读取沟通风格
+    store = runtime.store
+    prefs = store.get(("preferences",), user_id)
+
+    base = "你是一个有帮助的助手。"
+    if prefs:
+        style = prefs.value.get("communication_style", "balanced")
+        base += f"\n优先选择 {style} 风格的响应。"
+    return base
+```
+
+:::
+
+:::js
+
+```typescript
+import { createMiddleware } from "langchain";
+
+const styleAwareMiddleware = createMiddleware({
+  name: "StyleAwareMiddleware",
+  contextSchema,
+  beforeModel: async (state, runtime) => {
+    const userId = runtime.context.userId;
+    const store = runtime.store;
+
+    // Read communication style from store
+    const prefs = await store.get(["preferences"], userId);
+    let base = "You are a helpful assistant.";
+    if (prefs) {
+      const style = prefs.value?.communicationStyle || "balanced";
+      base += `\nPrefer ${style} responses.`;
+    }
+    return {
+      messages: [
+        { role: "system", content: base },
+        ...state.messages,
+      ],
+    };
+  },
+});
+```
+
+:::
+
+## 关键 API
+
+[存储](https://langchain-ai.github.io/langgraph/concepts/memory/#memory-store) 有两个主要操作：
+
+| 方法 | 描述 |
+|--------|-------------|
+| `get(namespace, key)` | 检索单个项。如果找到则返回 `Item`，否则返回 `None`。 |
+| `put(namespace, key, value)` | 写入或覆盖指定命名空间和键下的项。 |
+| `search(namespace)` | 列出命名空间中的键。 |
+| `delete(namespace, key)` | 从命名空间中删除项。 |
+
+**命名空间** 是标识数据类别的字符串元组，如 `("preferences",)`、`("memories", "user_123")` 或 `("user_123", "conversations")`。
+
+## 存储后端
+
+LangGraph 为长期记忆提供了多个存储后端：
+
+| 后端 | 用例 |
+|---------|-----------|
+| `InMemoryStore` | 原型设计和测试。 |
+| `PostgresStore` / `AsyncPostgresStore` | 需要持久存储的生产部署。 |
+| `BaseStore` | 通过实现此接口的自定义后端。 |
+
+选择后端是一个部署决策——存储 API 保持一致，因此从 `InMemoryStore` 切换到 `PostgresStore` 不需要更改你的工具或中间件代码。
+
+## 更多资源
+
+- 有关存储的更多详细信息，请参阅 LangGraph 的 [记忆存储概念文档](https://langchain-ai.github.io/langgraph/concepts/memory/#memory-store)
+- 有关存储的 API 参考，请参阅 LangGraph 的 [BaseStore 文档](https://langchain-ai.github.io/langgraph/reference/store/#langgraph.store.base.BaseStore)
+- 有关[对话摘要](https://langchain-ai.github.io/langgraph/how-tos/memory/delete-memory/)的端到端示例，
+  请参阅 LangGraph 教程
+- 有关在工具和中间件中访问运行时的信息，请参阅[运行时文档](/oss/langchain/runtime)

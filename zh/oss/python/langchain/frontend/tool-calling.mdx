@@ -1,0 +1,179 @@
+---
+title: 前端工具调用
+description: 将工具调用流式传输到前端进行实时渲染
+---
+
+当 agent 进行工具调用时，你可以在模型生成过程中实时将这些调用流式传输到前端。这使你的 UI 能够立即显示正在发生的情况，例如在等待响应时显示工具调用进度指示器。
+
+## 在流式代理中读取工具调用
+
+Agent 在调用工具之前生成一条包含工具调用块的 AI 消息。当使用 `astream_events` 时，UI 可以在第一批 token 到达时立即开始渲染：
+
+:::python
+```python
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[search_tool],
+)
+
+prompt = "搜索最近的新闻"
+
+async for event in agent.astream_events(
+    {"messages": [{"role": "user", "content": prompt}]},
+    version="v2",
+):
+    kind = event["event"]
+    if kind == "on_chat_model_end":
+        # 输出包含工具调用
+        print(event["data"]["output"])
+    elif kind == "on_tool_start":
+        # 工具即将执行
+        print(f"开始工具：{event['name']} 输入：{event['data'].get('input')}")
+    elif kind == "on_tool_end":
+        # 工具已完成
+        print(f"工具完成：{event['name']} 输出：{event['data'].get('output')}")
+```
+:::
+
+:::js
+```typescript
+import { createAgent } from "langchain";
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [searchTool],
+});
+
+const prompt = "搜索最近的新闻";
+
+for await (const event of agent.astreamEvents(
+  { messages: [{ role: "user", content: prompt }] },
+  { version: "v2" }
+)) {
+  const kind = event.event;
+  if (kind === "on_chat_model_end") {
+    // 输出包含工具调用
+    console.log(event.data.output);
+  } else if (kind === "on_tool_start") {
+    // 工具即将执行
+    console.log(`开始工具：${event.name} 输入：${JSON.stringify(event.data.input)}`);
+  } else if (kind === "on_tool_end") {
+    // 工具已完成
+    console.log(`工具完成：${event.name} 输出：${event.data.output}`);
+  }
+}
+```
+:::
+
+## 使用带有流式代理的自定义回调
+
+通过实现 `BaseCallbackHandler`，你可以更精细地控制如何将工具调用流式传输到前端：
+
+:::python
+```python
+from langchain.agents import create_agent
+from langchain.callbacks.base import BaseCallbackHandler
+from langchain.schema import LLMResult
+
+
+class ToolStreamingHandler(BaseCallbackHandler):
+    def on_llm_end(self, response: LLMResult, **kwargs) -> None:
+        """当 LLM 完成生成时调用。"""
+        for generation in response.generations[0]:
+            if hasattr(generation, "message"):
+                message = generation.message
+                # 检查工具调用
+                if hasattr(message, "tool_calls") and message.tool_calls:
+                    for tc in message.tool_calls:
+                        # 将每个工具调用流式传输到前端
+                        self.stream_tool_call(tc["name"], tc["args"])
+
+    def stream_tool_call(self, name: str, args: dict) -> None:
+        """将工具调用发送到前端。"""
+        print(f"[TOOL_CALL] {name}({args})")
+
+
+agent = create_agent(
+    model="gpt-5.4",
+    tools=[search_tool],
+)
+
+handler = ToolStreamingHandler()
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "搜索最近的新闻"}]},
+    config={"callbacks": [handler]},
+)
+```
+:::
+
+:::js
+```typescript
+import { createAgent, BaseCallbackHandler } from "langchain";
+
+class ToolStreamingHandler extends BaseCallbackHandler {
+  private streamToolCall(name: string, args: Record<string, unknown>): void {
+    // 将工具调用发送到前端
+    console.log(`[TOOL_CALL] ${name}(${JSON.stringify(args)})`);
+  }
+
+  handleLLMEnd(output: { generations: Array<Array<{ message?: any }>> }): void {
+    for (const generation of output.generations[0]) {
+      if (generation.message?.tool_calls) {
+        for (const tc of generation.message.tool_calls) {
+          this.streamToolCall(tc.name, tc.args);
+        }
+      }
+    }
+  }
+}
+
+const agent = createAgent({
+  model: "gpt-5.4",
+  tools: [searchTool],
+});
+
+const handler = new ToolStreamingHandler();
+const result = await agent.invoke(
+  { messages: [{ role: "user", content: "搜索最近的新闻" }] },
+  { callbacks: [handler] }
+);
+```
+:::
+
+## 在交互 UI 中渲染
+
+对于 web UI，当你收到事件时，你可以逐步更新 UI。工具调用可以有自己的视觉状态：
+
+1. **正在处理**：工具正在运行。
+2. **完成**：工具结果已返回。
+3. **错误**：工具失败。
+4. **待处理**：工具排队等待运行。
+
+一种常见的方法是维护一个工具调用映射，随着事件的到来逐步更新：
+
+```javascript
+// 概念性前端代码
+const toolCalls = new Map();
+
+function handleToolEvent(event) {
+  if (event.event === "on_tool_start") {
+    toolCalls.set(event.name, {
+      id: event.run_id,
+      name: event.name,
+      status: "running",
+      input: event.data.input,
+    });
+  } else if (event.event === "on_tool_end") {
+    const existing = toolCalls.get(event.name);
+    if (existing) {
+      existing.status = "completed";
+      existing.output = event.data.output;
+    }
+  }
+  renderToolCalls(toolCalls);
+}
+```
+
+这样，UI 可以在 agent 循环继续时，将每个工具调用渲染为具有动画状态指示器的卡片，完成后切换显示结果。

@@ -1,0 +1,299 @@
+---
+title: 多智能体
+sidebarTitle: 概述
+---
+
+多智能体系统通过协调专业化组件来处理复杂工作流。然而，并非所有复杂任务都需要这种方法——一个拥有合适（有时是动态的）工具和提示词的单一智能体通常也能达到类似的效果。
+
+<Tip>
+如需内置的多智能体支持，请使用 [Deep Agents](/oss/deepagents/overview)：一个基于 LangChain 构建的高级框架，提供[子智能体](/oss/deepagents/subagents)、[技能](/oss/deepagents/skills)、规划、虚拟文件系统和上下文管理。
+</Tip>
+
+## 为什么使用多智能体？
+
+当开发者说他们需要"多智能体"时，通常是在寻找以下一种或多种能力：
+
+- <Icon icon="brain" /> **上下文管理**：在不压垮模型上下文窗口的情况下提供专业知识。如果上下文无限且延迟为零，你可以将所有知识倒入一个提示词中——但现实并非如此，因此你需要有选择性地呈现相关信息的模式。
+- <Icon icon="users" /> **分布式开发**：允许不同团队独立开发和维护能力，通过清晰的边界将它们组合成更大的系统。
+- <Icon icon="git-branch" /> **并行化**：为子任务生成专业化工作单元，并同时执行以获得更快的响应。
+
+当单个智能体的[工具](/oss/langchain/tools)过多且难以决定使用哪个时，当任务需要具有大量上下文（长提示词和领域特定工具）的专业知识时，或者当需要强制执行顺序约束（只有在满足某些条件后才解锁能力）时，多智能体模式尤其有价值。
+
+<Tip>
+多智能体设计的核心是**[上下文工程](/oss/langchain/context-engineering)**——决定每个智能体能看到什么信息。系统的质量取决于确保每个智能体都能访问到适合其任务的正确数据。
+</Tip>
+
+## 模式
+
+以下是构建多智能体系统的主要模式，每种模式适用于不同的使用场景：
+
+| 模式 | 工作原理 |
+|--------------|--------------|
+| [**子智能体**](/oss/langchain/multi-agent/subagents) | 主智能体将子智能体作为工具进行协调。所有路由都经过主智能体，由主智能体决定何时以及如何调用每个子智能体。 |
+| [**交接**](/oss/langchain/multi-agent/handoffs) | 行为根据状态动态变化。工具调用更新状态变量，从而触发路由或配置变更，切换智能体或调整当前智能体的工具和提示词。 |
+| [**技能**](/oss/langchain/multi-agent/skills) | 按需加载专业化的提示词和知识。单个智能体保持控制，同时根据需要加载技能上下文。 |
+| [**路由器**](/oss/langchain/multi-agent/router) | 路由步骤对输入进行分类并导向一个或多个专业化智能体。结果被综合成组合响应。 |
+| [**自定义工作流**](/oss/langchain/multi-agent/custom-workflow) | 使用 [LangGraph](/oss/langgraph/overview) 构建自定义执行流程，混合确定性逻辑和智能体行为。将其他模式作为工作流中的节点嵌入。 |
+
+### 选择模式
+
+使用下表将你的需求与合适的模式进行匹配：
+
+<div className="compact-first-col">
+
+| 模式 | 分布式开发 | 并行化 | 多跳 | 直接用户交互 |
+|---------|:-----------------------:|:---------------:|:----------:|:-----------------------:|
+| [**子智能体**](/oss/langchain/multi-agent/subagents) | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ |
+| [**交接**](/oss/langchain/multi-agent/handoffs) | - | - | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| [**技能**](/oss/langchain/multi-agent/skills) | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| [**路由器**](/oss/langchain/multi-agent/router) | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | - | ⭐⭐⭐ |
+
+</div>
+
+- **分布式开发**：不同团队能否独立维护组件？
+- **并行化**：多个智能体能否同时执行？
+- **多跳**：该模式是否支持串联调用多个子智能体？
+- **直接用户交互**：子智能体能否直接与用户对话？
+
+<Tip>
+    你可以混合使用这些模式！例如，**子智能体**架构可以调用调用自定义工作流或路由器智能体的工具。子智能体甚至可以使用**技能**模式按需加载上下文。可能性是无限的！
+</Tip>
+
+### 可视化概览
+
+<Tabs>
+  <Tab title="子智能体（Subagents）">
+    主智能体将子智能体作为工具进行协调。所有路由都经过主智能体。
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/pattern-subagents.png" alt="子智能体模式：主智能体将子智能体作为工具进行协调" />
+    </Frame>
+  </Tab>
+
+  <Tab title="交接（Handoffs）">
+    智能体通过工具调用相互传递控制权。每个智能体可以交接给其他智能体或直接响应用户。
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/pattern-handoffs.png" alt="交接模式：智能体通过工具调用传递控制权" />
+    </Frame>
+  </Tab>
+
+  <Tab title="技能（Skills）">
+    单个智能体在保持控制的同时按需加载专业化的提示词和知识。
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/pattern-skills.png" alt="技能模式：单个智能体按需加载专业化上下文" />
+    </Frame>
+  </Tab>
+
+  <Tab title="路由器（Router）">
+    路由步骤对输入进行分类并导向专业化的智能体。结果被综合处理。
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/pattern-router.png" alt="路由器模式：路由步骤将输入分类到专业化智能体" />
+    </Frame>
+  </Tab>
+</Tabs>
+
+<Tip>
+在 [LangSmith](https://smith.langchain.com) 上追踪跨智能体的完整协调流程。按照[追踪快速入门](/langsmith/trace-with-langchain)进行设置。
+</Tip>
+
+## 性能对比
+
+不同模式具有不同的性能特征。理解这些权衡有助于你根据延迟和成本需求选择合适的模式。
+
+**关键指标：**
+- **模型调用次数**：LLM 调用的次数。调用次数越多，延迟越高（尤其是顺序调用时），每次请求的 API 成本也越高。
+- **处理的 Token 数**：所有调用中的[上下文窗口](/oss/langchain/context-engineering)总使用量。Token 越多，处理成本越高，可能触及上下文限制。
+
+### 一次性请求
+
+> **用户：** "买咖啡"
+
+一个专门的咖啡智能体/技能可以调用 `buy_coffee` 工具。
+
+| 模式 | 模型调用次数 | 最适合 |
+|---------|:-----------:|:--------:|
+| [**子智能体**](/oss/langchain/multi-agent/subagents) | 4 | |
+| [**交接**](/oss/langchain/multi-agent/handoffs) | 3 | ✅ |
+| [**技能**](/oss/langchain/multi-agent/skills) | 3 | ✅ |
+| [**路由器**](/oss/langchain/multi-agent/router) | 3 | ✅ |
+
+<Tabs>
+  <Tab title="子智能体（Subagents）">
+    **4 次模型调用：**
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/oneshot-subagents.png" alt="子智能体一次性：买咖啡请求需要 4 次模型调用" />
+    </Frame>
+  </Tab>
+
+  <Tab title="交接（Handoffs）">
+    **3 次模型调用：**
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/oneshot-handoffs.png" alt="交接一次性：买咖啡请求需要 3 次模型调用" />
+    </Frame>
+  </Tab>
+
+  <Tab title="技能（Skills）">
+    **3 次模型调用：**
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/oneshot-skills.png" alt="技能一次性：买咖啡请求需要 3 次模型调用" />
+    </Frame>
+  </Tab>
+
+  <Tab title="路由器（Router）">
+    **3 次模型调用：**
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/oneshot-router.png" alt="路由器一次性：买咖啡请求需要 3 次模型调用" />
+    </Frame>
+  </Tab>
+</Tabs>
+
+**关键洞察：** 交接、技能和路由器在单次任务中效率最高（各需 3 次调用）。子智能体增加了一次额外调用，因为结果需要流经主智能体——这种开销带来了集中控制。
+
+### 重复请求
+
+> **第 1 轮：** "买咖啡"
+> **第 2 轮：** "再买一杯咖啡"
+
+用户在同一个对话中重复相同的请求。
+
+<div className="compact-first-col">
+
+| 模式 | 第 2 轮调用次数 | 总计（两轮） | 最适合 |
+|---------|:------------:|:------------------:|:--------:|
+| [**子智能体**](/oss/langchain/multi-agent/subagents) | 4 | 8 | |
+| [**交接**](/oss/langchain/multi-agent/handoffs) | 2 | 5 | ✅ |
+| [**技能**](/oss/langchain/multi-agent/skills) | 2 | 5 | ✅ |
+| [**路由器**](/oss/langchain/multi-agent/router) | 3 | 6 | |
+
+</div>
+
+<Tabs>
+  <Tab title="子智能体（Subagents）">
+    **再次 4 次调用 → 总计 8 次**
+
+    - 子智能体**设计为无状态的**——每次调用都遵循相同的流程
+    - 主智能体维护对话上下文，但子智能体每次都重新开始
+    - 这提供了强上下文隔离，但会重复完整流程
+  </Tab>
+
+  <Tab title="交接（Handoffs）">
+    **2 次调用 → 总计 5 次**
+
+    - 咖啡智能体**仍然活跃**（状态持续存在）
+    - 无需交接——智能体直接调用 `buy_coffee` 工具（第 1 次调用）
+    - 智能体响应用户（第 2 次调用）
+    - **通过跳过交接节省 1 次调用**
+  </Tab>
+
+  <Tab title="技能（Skills）">
+    **2 次调用 → 总计 5 次**
+
+    - 技能上下文**已经加载**到对话历史中
+    - 无需重新加载——智能体直接调用 `buy_coffee` 工具（第 1 次调用）
+    - 智能体响应用户（第 2 次调用）
+    - **通过复用已加载的技能节省 1 次调用**
+  </Tab>
+
+  <Tab title="路由器（Router）">
+    **再次 3 次调用 → 总计 6 次**
+
+    - 路由器**是无状态的**——每次请求都需要一次 LLM 路由调用
+    - 第 2 轮：路由器 LLM 调用（1）→ 奶昔智能体调用 buy_coffee（2）→ 奶昔智能体响应（3）
+    - 可以通过包装为有状态智能体中的工具进行优化
+  </Tab>
+</Tabs>
+
+**关键洞察：** 有状态模式（交接、技能）在重复请求上节省 40-50% 的调用。子智能体保持每次请求成本一致——这种无状态设计提供了强上下文隔离，但代价是重复的模型调用。
+
+### 多领域
+
+> **用户：** "比较 Python、JavaScript 和 Rust 在 Web 开发中的优劣"
+
+每个语言智能体/技能包含约 2000 token 的文档。所有模式都可以进行并行工具调用。
+
+| 模式 | 模型调用次数 | Token 总数 | 最适合 |
+|---------|:-----------:|:------------:|:--------:|
+| [**子智能体**](/oss/langchain/multi-agent/subagents) | 5 | ~9K | ✅ |
+| [**交接**](/oss/langchain/multi-agent/handoffs) | 7+ | ~14K+ | |
+| [**技能**](/oss/langchain/multi-agent/skills) | 3 | ~15K | |
+| [**路由器**](/oss/langchain/multi-agent/router) | 5 | ~9K | ✅ |
+
+<Tabs>
+  <Tab title="子智能体（Subagents）">
+    **5 次调用，~9K token**
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/multidomain-subagents.png" alt="子智能体多领域：5 次调用并行执行" />
+    </Frame>
+
+    每个子智能体在**隔离**中工作，只包含其相关上下文。总计：**9K token**。
+  </Tab>
+
+  <Tab title="交接（Handoffs）">
+    **7+ 次调用，~14K+ token**
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/multidomain-handoffs.png" alt="交接多领域：7+ 次顺序调用" />
+    </Frame>
+
+    交接**顺序执行**——无法并行研究所有三种语言。增长中的对话历史增加了开销。总计：**~14K+ token**。
+  </Tab>
+
+  <Tab title="技能（Skills）">
+    **3 次调用，~15K token**
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/multidomain-skills.png" alt="技能多领域：3 次调用累积上下文" />
+    </Frame>
+
+    加载后，**每次后续调用都要处理全部 6K token 的技能文档**。子智能体由于上下文隔离，整体处理的 token 数少 67%。总计：**15K token**。
+  </Tab>
+
+  <Tab title="路由器（Router）">
+    **5 次调用，~9K token**
+
+    <Frame>
+      <img src="/oss/langchain/multi-agent/images/multidomain-router.png" alt="路由器多领域：5 次调用并行执行" />
+    </Frame>
+
+    路由器使用 **LLM 进行路由**，然后并行调用智能体。与子智能体类似，但具有显式的路由步骤。总计：**9K token**。
+  </Tab>
+</Tabs>
+
+**关键洞察：** 对于多领域任务，支持并行执行的模式（子智能体、路由器）效率最高。技能调用次数少，但由于上下文累积，token 使用量高。交接在此效率低下——它必须顺序执行，无法利用并行工具调用来同时查询多个领域。
+
+### 总结
+
+以下是各模式在所有三种场景中的对比：
+
+<div className="compact-first-col">
+
+| 模式 | 一次性 | 重复请求 | 多领域 |
+|---------|:-----------:|:---------:|:----------------:|
+| [**子智能体**](/oss/langchain/multi-agent/subagents) | 4 次调用 | 8 次调用（4+4） | 5 次调用，9K token |
+| [**交接**](/oss/langchain/multi-agent/handoffs) | 3 次调用 | 5 次调用（3+2） | 7+ 次调用，14K+ token |
+| [**技能**](/oss/langchain/multi-agent/skills) | 3 次调用 | 5 次调用（3+2） | 3 次调用，15K token |
+| [**路由器**](/oss/langchain/multi-agent/router) | 3 次调用 | 6 次调用（3+3） | 5 次调用，9K token |
+
+</div>
+
+**选择模式：**
+
+<div className="compact-first-col">
+
+| 优化目标 | [子智能体](/oss/langchain/multi-agent/subagents) | [交接](/oss/langchain/multi-agent/handoffs) | [技能](/oss/langchain/multi-agent/skills) | [路由器](/oss/langchain/multi-agent/router) |
+|--------------|:---------:|:--------:|:------:|:------:|
+| 单次请求 | | ✅ | ✅ | ✅ |
+| 重复请求 | | ✅ | ✅ | |
+| 并行执行 | ✅ | | | ✅ |
+| 大上下文领域 | ✅ | | | ✅ |
+| 简单聚焦任务 | | | ✅ | |
+
+</div>

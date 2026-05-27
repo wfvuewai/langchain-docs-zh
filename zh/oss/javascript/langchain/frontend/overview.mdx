@@ -1,0 +1,62 @@
+---
+title: 前端集成概述
+description: 将 agent 集成到 web、移动和桌面应用中的指南
+---
+
+LangChain agent 通过为常见前端挑战提供内置支持，弥合了 AI 后端与用户界面之间的鸿沟：
+
+- **流式处理**：将工具调用和 AI 响应实时流式传输到 UI，实现即时更新。
+- **消息管理**：标记、分支和[时间旅行](/oss/langchain/frontend/time-travel)让用户掌控对话流程。
+- **结构化输出**：从模型生成类型化的结构化响应，实现可靠的 UI 渲染。
+- **人工介入**：在工具执行前暂停等待审批，实现安全的工作流。
+- **生成式 UI**：将 AI 生成的组件渲染为消息的一部分，实现动态界面。
+
+## 前端架构
+
+典型的前端集成涉及以下组件之间的协调：
+
+1. **Agent 运行时**：运行 agent 逻辑并管理状态的后端服务。
+2. **API 层**：在后端持久化 agent 状态，并从客户端与 agent 通信的接口。
+3. **客户端**：渲染聊天 UI 并与 API 层交互的前端应用。
+4. **消息存储**：存储 agent 和用户消息的持久化后端。
+
+## 消息管理
+
+LangChain agent 使用[消息](/oss/langchain/concepts/messages)作为主要的输入/输出格式，提供标准化的 agent 通信模式。通过将整个对话视为消息序列来简化 UI 渲染，而不是需要手动构建和附加到提示词。
+
+Agent 支持[消息标记](/oss/langchain/frontend/markdown-messages)，允许 UI 显示带有元数据的富文本。
+
+有关前端集成挑战的解决方案，请参阅：
+
+<CardGroup cols={2}>
+    <Card title="Markdown 消息" icon="markdown" href="/oss/langchain/frontend/markdown-messages">
+        为 UI 渲染发送带有 Markdown 格式的富文本消息。
+    </Card>
+    <Card title="工具调用" icon="tool" href="/oss/langchain/frontend/tool-calling">
+        将工具调用流式传输到前端进行实时渲染。
+    </Card>
+    <Card title="人工介入" icon="user-check" href="/oss/langchain/frontend/human-in-the-loop">
+        在工具执行前暂停等待审批。
+    </Card>
+    <Card title="分支对话" icon="git-branch" href="/oss/langchain/frontend/branching-chat">
+        支持对话分支进行实验和比较。
+    </Card>
+    <Card title="推理 token" icon="brain" href="/oss/langchain/frontend/reasoning-tokens">
+        将模型推理步骤流式传输到前端。
+    </Card>
+    <Card title="结构化输出" icon="list-numbers" href="/oss/langchain/frontend/structured-output">
+        从模型生成类型化响应以实现可靠的 UI 渲染。
+    </Card>
+    <Card title="消息队列" icon="queue" href="/oss/langchain/frontend/message-queues">
+        管理消息队列以实现高效处理和持久化。
+    </Card>
+    <Card title="加入与重新加入" icon="arrows-join" href="/oss/langchain/frontend/join-rejoin">
+        跨子图合并消息流。
+    </Card>
+    <Card title="时间旅行" icon="clock" href="/oss/langchain/frontend/time-travel">
+        回溯历史状态以检查或分支。
+    </Card>
+    <Card title="生成式 UI" icon="sparkles" href="/oss/langchain/frontend/generative-ui">
+        将 AI 生成的组件渲染为消息的一部分。
+    </Card>
+</CardGroup>

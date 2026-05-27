@@ -1,0 +1,361 @@
+---
+title: 消息
+---
+
+消息表示模型与其调用者（通常是人类用户）之间的通信。每条消息都有一个**角色**（来源或意图）和**内容**（消息携带的信息）。
+
+**角色**可以指示谁是消息的来源（"human" 或 "assistant"），或消息的意图（"system" 用于设置行为）。
+
+**内容**可以简单（纯文本）或结构化（类型与数据组合的集合）。当一个消息需要包含多种数据时——例如，同时包含文本和图像——内容可以表示为内容块的列表。
+
+消息是 [models](/oss/langchain/models) 和 [agents](/oss/langchain/agents) 的基本构建块。模型接收消息列表并返回新消息。
+
+## 消息类型
+
+LangChain 提供了多种标准消息类型，每种类型都有特定的用途和角色。
+
+### 系统消息
+
+系统消息设置对话的上下文和指令。它们通常用于定义 AI 助手的个性、约束、知识范围和行为。
+
+:::python
+```python
+from langchain.messages import SystemMessage
+
+SystemMessage("You are a helpful assistant that speaks French.")
+```
+:::
+:::js
+```typescript
+import { SystemMessage } from "langchain";
+
+new SystemMessage("You are a helpful assistant that speaks French.");
+```
+:::
+
+系统消息通常在对话开始时发送，但在对话过程中添加新的系统消息也是允许的（尽管[某些提供商](#provider-specific-behavior)在检测到消息历史中存在多个系统消息时可能会有特殊行为）。
+
+### 人类消息
+
+人类消息代表用户的输入。它们是用户的通信方法。
+
+:::python
+```python
+
+from langchain.messages import HumanMessage
+
+HumanMessage("What's the weather like in Paris?")
+```
+:::
+:::js
+```typescript
+import { HumanMessage } from "langchain";
+
+new HumanMessage("What's the weather like in Paris?");
+```
+:::
+
+### AI 消息
+
+AI 消息代表模型的响应。这是模型返回消息的标准类型。在某些情况下——例如，当模型决定调用[工具](/oss/langchain/tools)并返回正在调用的工具的名称和参数时——AI 消息还可以包含工具调用信息。
+
+:::python
+```python
+from langchain.messages import AIMessage
+
+AIMessage("Il fait beau à Paris aujourd'hui.")
+```
+:::
+:::js
+```typescript
+import { AIMessage } from "langchain";
+
+new AIMessage("Il fait beau à Paris aujourd'hui.");
+```
+:::
+
+### 工具消息
+
+工具消息包含[工具](/oss/langchain/tools#tool-messages)执行的结果。这些消息将工具的输出传递回模型，通常是对 AI 消息中工具调用的响应，包含在对应工具调用时生成的输出数据。
+
+:::python
+```python
+from langchain.messages import ToolMessage
+
+ToolMessage("Il fait beau à Paris aujourd'hui.", tool_call_id="1")
+```
+:::
+:::js
+```typescript
+import { ToolMessage } from "langchain";
+
+new ToolMessage({ content: "Il fait beau à Paris aujourd'hui.", tool_call_id: "1" });
+```
+:::
+
+### Tool Call（在 AI 消息内）
+
+当模型决定调用工具时，它会生成工具调用。这些是 AI 消息的一部分，用于指示应该调用哪些工具以及使用什么参数。工具调用包含名称、参数字典和标识符。
+
+:::python
+```python
+from langchain.messages import AIMessage
+
+AIMessage(
+    content="",
+    tool_calls=[
+        {
+            "name": "get_weather",
+            "args": {"location": "Paris"},
+            "id": "call_123",
+        }
+    ],
+)
+```
+:::
+:::js
+```typescript
+import { AIMessage } from "langchain";
+
+new AIMessage({
+    content: "",
+    tool_calls: [
+        {
+            name: "get_weather",
+            args: { location: "Paris" },
+            id: "call_123",
+        },
+    ],
+});
+```
+:::
+
+### Tool Call Chunk（流式传输）
+
+当流式传输带有工具调用的 AI 消息时，工具调用可能作为 chunk 到达。这些 chunk 包含与完整工具调用相同的信息，但可能仅部分完成。它们被"流式传输"到您那里，以便您可以开始处理或显示工具调用信息，而无需等待所有数据一次性到达。
+
+:::python
+```python
+from langchain.messages import AIMessageChunk
+
+AIMessageChunk(
+    content="",
+    tool_call_chunks=[
+        {
+            "name": "get_weather",
+            "args": '{"location": "Paris"}',
+            "id": "call_123",
+        }
+    ],
+)
+```
+:::
+:::js
+```typescript
+import { AIMessageChunk } from "langchain";
+
+new AIMessageChunk({
+    content: "",
+    tool_call_chunks: [
+        {
+            name: "get_weather",
+            args: '{"location": "Paris"}',
+            id: "call_123",
+        },
+    ],
+});
+```
+:::
+
+## 消息内容
+
+消息内容可以简单（纯文本）或结构化（[内容块](#standard-content-blocks)的集合）。当消息结构简单时，其内容就是一个字符串。但是，当提供一组内容块时，消息可以包含文本、图像、音频和其他数据类型的组合。
+
+### 纯文本
+
+最简单的消息形式，其中内容只是一个字符串。
+
+:::python
+```python
+SystemMessage("You are a helpful assistant.")
+```
+:::
+:::js
+```typescript
+new SystemMessage("You are a helpful assistant.");
+```
+:::
+
+### 标准内容块
+
+内容块提供了一种标准化的方式在消息中包含不同数据类型。当内容是一系列块时，每个块都有一个 `type` 字段，指示它所包含的数据类型，以及一个包含实际有效载荷的数据字段。
+
+| Block type | 描述 | 类型特定字段 |
+|------------|------|--------------|
+| `text` | 纯文本内容 | `text` |
+| `image` | 图片数据（base64 编码的图像） | `base64`、`mime_type`（如果已知） |
+| `image_url` | 从 URL 引用的图片数据 | `url`、`mime_type`（如果已知） |
+| `tool_use` | 请求调用工具 | `name`、`input` |
+| `tool_result` | 工具执行结果 | `content`、`tool_use_id`、`is_error` |
+| `reasoning` | 模型的逐步推理 | `reasoning`、`signature` |
+| `server_tool_call` | 由提供商服务端处理的工具调用 | `name`、`args`、`type`、`id` |
+| `server_tool_result` | 服务端工具调用的结果 | `tool_call_id`、`status`、`output`、`is_error` |
+
+将消息内容传递为一系列块允许模型在一次调用中接收多种类型的数据。
+
+:::python
+```python
+HumanMessage(
+    content=[
+        {"type": "text", "text": "What does this image contain?"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}, "mime_type": "image/jpeg"},
+    ],
+)
+```
+:::
+:::js
+```typescript
+new HumanMessage({
+    content: [
+        { type: "text", text: "What does this image contain?" },
+        { type: "image_url", image_url: { url: "https://example.com/cat.jpg" }, mime_type: "image/jpeg" },
+    ],
+});
+```
+:::
+
+返回的内容块是模型输出的非流式表示。它们包含模型生成的所有数据，包括文本、工具请求和推理步骤。返回的内容块通过单独的字段（如 `content_blocks`）暴露，以补充聚合的 `content`（纯文本）字段。
+
+:::python
+```python
+response = model.invoke("What color is the sky?")
+print(response.content_blocks)
+# [
+#     {"type": "text", "text": "The sky is blue."},
+# ]
+```
+:::
+
+:::js
+```typescript
+const response = await model.invoke("What color is the sky?");
+console.log(response.contentBlocks);
+// [
+//   { type: "text", text: "The sky is blue." },
+// ];
+```
+:::
+
+当模型触发工具调用时，无论是客户端还是服务端，这些都会在响应中以内容块数组的形式返回。请上面的"标准内容块"表查看工具调用相关块的格式。
+
+## Token 使用量
+
+:::python
+@[`AIMessage`] 对象可能包含 `usage_metadata` 属性，该属性提供有关消息 token 使用情况的信息。此属性是 @[`UsageMetadata`] 字典，在调用模型时由提供商设置（如果可用）。
+
+```python
+message = model.invoke("Hello")
+message.usage_metadata
+# {
+#     "input_tokens": 8,
+#     "output_tokens": 9,
+#     "total_tokens": 17,
+#     "input_token_details": {"audio": 0, "cache_read": 0},
+#     "output_token_details": {"audio": 0, "reasoning": 0},
+# }
+```
+:::
+
+:::js
+@[`AIMessage`] 对象可能包含 `usage_metadata` 属性，该属性提供有关消息 token 使用情况的信息。此属性在调用模型时由提供商设置（如果可用）。
+
+```typescript
+const message = await model.invoke("Hello");
+message.usage_metadata;
+// {
+//   input_tokens: 8,
+//   output_tokens: 9,
+//   total_tokens: 17,
+//   input_token_details: { audio: 0, cache_read: 0 },
+//   output_token_details: { audio: 0, reasoning: 0 },
+// }
+```
+:::
+
+这些统计信息对于监控和成本跟踪非常有用。
+
+## 消息序列
+
+消息序列表示 AI 模型和人类/工具之间的整个对话上下文。序列通常以 [系统消息](#system-message) 开头，接着是人类和 AI 消息的交替，并可能包括工具执行结果。
+
+:::python
+```python
+from langchain.messages import SystemMessage, HumanMessage, AIMessage
+
+messages = [
+    SystemMessage("You are a helpful assistant."),
+    HumanMessage("What is LangChain?"),
+    AIMessage("LangChain is a framework for developing applications powered by language models."),
+    HumanMessage("How do I get started?"),
+]
+```
+:::
+:::js
+```typescript
+import { SystemMessage, HumanMessage, AIMessage } from "langchain";
+
+const messages = [
+    new SystemMessage("You are a helpful assistant."),
+    new HumanMessage("What is LangChain?"),
+    new AIMessage("LangChain is a framework for developing applications powered by language models."),
+    new HumanMessage("How do I get started?"),
+];
+```
+:::
+
+## 多模态
+
+多模态消息是包含非文本内容（如文本、图像和音频）的消息。它们用内容块表示，允许在单个消息中包含每种类型的一个或多个块。
+
+并非所有模型都支持多模态；它们的能力取决于模型提供商和具体模型变体。
+
+以下是包含文本和图像的示例：
+
+:::python
+```python
+from langchain.messages import HumanMessage
+
+message = HumanMessage(
+    content=[
+        {"type": "text", "text": "What's in this image?"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}, "mime_type": "image/jpeg"},
+    ]
+)
+```
+:::
+:::js
+```typescript
+import { HumanMessage } from "langchain";
+
+const message = new HumanMessage({
+    content: [
+        { type: "text", text: "What's in this image?" },
+        { type: "image_url", image_url: { url: "https://example.com/image.jpg" }, mime_type: "image/jpeg" },
+    ],
+});
+```
+:::
+
+有些模型可以输出图像、音频或其他多模态内容。详情请参阅模型的 [provider 参考](/oss/integrations/providers/overview)。
+
+## Provider 特定行为
+
+不同的模型提供商可能期望消息序列的格式略有不同，LangChain 会自动处理这些差异。常见差异包括：
+
+- **系统消息放置**：某些提供商将系统消息视为与对话历史分开，即使将其作为消息列表的一部分传递，也会从历史中提取它们。如果检测到多个系统消息，有些提供商可能会**合并**或**忽略**，因此如果发现意外的行为，请检查 provider 的[集成文档](/oss/integrations/chat)。
+
+- **消息角色**：虽然所有提供商都支持 system、human 和 AI 角色，但角色名称的精确语义可能略有不同。LangChain 的标准消息类型在幕后映射到每个提供商适当的格式。
+
+- **工具调用格式**：工具调用在 AI 消息和工具消息中的结构化方式在提供商之间有所不同。LangChain 标准化了这些表示。
+
+有关特定提供商行为的详细信息，请参阅 [Chat model 集成](/oss/integrations/chat) 页面。

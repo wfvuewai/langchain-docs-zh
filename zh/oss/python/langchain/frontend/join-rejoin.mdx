@@ -1,0 +1,100 @@
+---
+title: 加入与重新加入
+description: 跨子图合并消息流
+---
+
+当使用[子图](/oss/langgraph/use-subgraphs)时，父图和子图都处理消息。`join` 和 `rejoin` 特性决定了这些消息如何合并。
+
+## 问题
+
+在 LangGraph 中，子图有自己独立的状态。当子图生成消息时，这些消息最初仅存在于子图的状态中。父图无法访问子图的消息，除非你显式地将它们带回来。
+
+这造成了挑战：
+
+- **父图无法看到子图消息**：这打破了对话历史记录。
+- **子图无法访问父图消息**：子图从父图发送的初始状态开始。
+- **实现消息共享**：选择哪种方式通常需要样板代码。
+
+## 解决方案：加入与重新加入
+
+`join` 和 `rejoin` 配置指定了在子图执行完成后子图消息如何与父图状态合并。
+
+<Accordion title="工作原理">
+
+当子图完成执行时，父图检查子图的最终状态以查找新消息。如果子图有任何加入消息，父图将这些消息追加到其自己的消息列表中。加入消息从子图的状态中移除。
+
+如果子图没有加入消息，父图只看到子图的最终输出（如果有的话）。
+
+</Accordion>
+
+### Join（加入）
+
+"加入"意味着子图生成的消息会在子图执行完成后复制到父图的状态。这确保了父图拥有完整的对话历史记录。
+
+你可以选择哪些消息加入：
+
+- **所有消息**（默认）：子图生成的所有消息都与父图共享。
+- **范围**：只加入最新的 N 条消息或特定类型的消息。
+- **无**：子图消息保持独立。
+
+### Rejoin（重新加入）
+
+"重新加入"超出了简单的消息合并，它还合并整个子图状态。这意味着：
+
+- 父图从子图继承**所有**状态更新。
+- 子图的最终状态成为父图状态的一部分。
+
+这在子图修改父图可能需要的信息的情况下非常有用，例如在子图运行后父图中的后续步骤。
+
+## 配置
+
+你可以在子图的编译配置中指定加入/重新加入行为：
+
+:::python
+```python
+from langgraph.graph import StateGraph
+
+child = StateGraph(...).compile()
+
+# 默认：加入所有消息
+parent = StateGraph(...)
+parent.add_node("child", child)
+
+# 自定义加入行为
+parent.add_node("child", child, join="messages")  # 只加入消息
+parent.add_node("child", child, join="output")  # 只加入输出
+parent.add_node("child", child, join=None)  # 不加入任何内容
+
+# 重新加入（合并所有状态）
+parent.add_node("child", child, rejoin=True)
+```
+:::
+
+:::js
+```typescript
+import { StateGraph } from "@langchain/langgraph";
+
+const child = new StateGraph(...).compile();
+
+// 默认：加入所有消息
+const parent = new StateGraph(...);
+parent.addNode("child", child);
+
+// 自定义加入行为
+parent.addNode("child", child, { join: "messages" }); // 只加入消息
+parent.addNode("child", child, { join: "output" }); // 只加入输出
+parent.addNode("child", child, { join: null }); // 不加入任何内容
+
+// 重新加入（合并所有状态）
+parent.addNode("child", child, { rejoin: true });
+```
+:::
+
+### 前端注意事项
+
+从 UI 的角度来看，加入和重新加入有助于确保：
+
+1. **完整的对话历史记录**：子图消息被合并回父图，因此 UI 可以显示来自所有子图的完整历史记录。
+2. **一致的状态**：状态对象在子图和父图之间保持一致。
+3. **简化渲染**：UI 可以渲染来自一个地方（父图）的消息，而无需跟踪多个状态来源。
+4. **可预测的流**：消息以可预测的顺序流式传输，首先是子图消息，然后是父图消息。

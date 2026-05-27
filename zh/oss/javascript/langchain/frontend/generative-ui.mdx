@@ -1,0 +1,156 @@
+---
+title: 生成式 UI
+description: 将 AI 生成的组件渲染为消息的一部分
+---
+
+生成式 UI 是一种让 AI 模型在聊天界面中动态生成交互式 UI 组件的模式。LangChain agent 可以使用结构化输出返回组件描述，而不是纯文本，你的前端可以将其渲染为实际的 UI 元素。
+
+## 它是如何工作的
+
+开发者定义了一组可用的 UI 组件，agent 可以用来构建界面。Agent 不是返回文本，而是返回一个组件树，你的前端将其渲染为交互式 UI。
+
+**典型的生成式 UI 流程：**
+
+1. 你定义了前端可用的 UI 组件集（按钮、卡片、图表、表单等）。
+2. Agent 在生成响应时选择一个组件。
+3. Agent 返回一个组件规范（组件类型 + 数据）。
+4. 你的前端将组件规范渲染为实际的 UI 元素。
+
+## 定义组件
+
+组件表示为模式，指定要渲染的组件类型及其数据：
+
+:::python
+```python
+from pydantic import BaseModel
+from typing import Any
+
+
+class UIComponent(BaseModel):
+    type: str  # 组件类型（例如 "weather_card"、"chart"、"button"）
+    props: dict[str, Any]  # 组件属性
+    children: list["UIComponent"] | None = None  # 嵌套组件
+```
+:::
+
+:::js
+```typescript
+interface UIComponent {
+  type: string; // 组件类型（例如 "weather_card"、"chart"、"button"）
+  props: Record<string, any>; // 组件属性
+  children?: UIComponent[]; // 嵌套组件
+}
+```
+:::
+
+### 在 agent 中使用
+
+将 UI 作为模式公开，使 agent 能够在你定义的约束范围内返回组件：
+
+:::python
+```python
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="gpt-5.4",
+)
+
+response = agent.invoke({
+    "messages": [{"role": "user", "content": "旧金山的天气怎么样？"}],
+    "output_schema": WeatherComponent,  # 你的 UI 组件模式
+})
+```
+:::
+
+:::js
+```typescript
+import { createAgent } from "langchain";
+
+const agent = createAgent({
+  model: "gpt-5.4",
+});
+
+const response = await agent.invoke({
+  messages: [{ role: "user", content: "旧金山的天气怎么样？" }],
+  outputSchema: WeatherComponent, // 你的 UI 组件模式
+});
+```
+:::
+
+## 渲染组件
+
+在前端，你注册一个将组件类型映射到实际 React 组件的组件注册表。当一条消息包含 UI 组件规范时，前端查找正确的组件，传入属性并渲染它。
+
+```jsx
+// 概念性的 React 组件
+const componentRegistry = {
+  weather_card: WeatherCard,
+  chart: ChartComponent,
+  button_list: ButtonList,
+  data_table: DataTable,
+};
+
+function GenerativeUIMessage({ content }) {
+  // 解析组件数据
+  const component = JSON.parse(content);
+
+  // 查找并渲染正确的组件
+  const Component = componentRegistry[component.type];
+  if (!Component) return <pre>{content}</pre>;
+
+  return (
+    <div className="generative-ui">
+      <Component {...component.props}>
+        {component.children?.map((child, i) => (
+          <GenerativeUIMessage key={i} content={JSON.stringify(child)} />
+        ))}
+      </Component>
+    </div>
+  );
+}
+```
+
+这种方法使 agent 能够返回从前端注册表中获取的复杂交互式 UI 元素，而不是普通的文本响应。
+
+## 组件注册表
+
+组件注册表是组件定义的集合，agent 可以从中选择。你可以在 agent 的系统提示或工具定义中描述可用的组件。
+
+**注册表应包含：**
+- **组件名称**：每个组件的唯一标识符。
+- **属性模式**：组件接受的属性类型。
+- **描述**：组件何时使用的清晰描述。
+
+这确保了 agent 使用正确的组件并传入正确的数据。
+
+## 流式 UI
+
+对于长时间运行的操作，你可以流式传输 UI 更新：
+
+```javascript
+// 概念性的流式 UI 实现
+const stream = await agent.streamEvents({ messages: [...] });
+
+for await (const event of stream) {
+  if (event.type === "component") {
+    // 逐步更新 UI
+    updateUI(event.component);
+  } else if (event.type === "content") {
+    // 追加内容
+    appendContent(event.content);
+  }
+}
+```
+
+这使得 UI 能够在 agent 生成时逐步构建，为用户提供即时反馈。
+
+## 何时使用生成式 UI
+
+生成式 UI 适用于：
+
+- **数据仪表盘**：Agent 根据用户请求动态生成图表。
+- **表单生成**：Agent 为数据输入任务创建表单。
+- **交互式工具**：Agent 构建带有按钮和控件的简单交互式元素。
+- **动态内容**：Agent 构建带有来自多个来源数据的富卡片布局。
+
+对于简单的文本响应或列表，标准的 Markdown 格式化通常就足够了，并且不需要生成式 UI。

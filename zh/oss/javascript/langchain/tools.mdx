@@ -1,0 +1,297 @@
+---
+title: 工具
+---
+
+工具让语言模型能够通过代码执行、数据检索和 API 调用与外部世界交互。
+
+通过 [models](/oss/langchain/models.mdx)，LangChain 支持将工具绑定到模型，这样模型可以请求执行工具并利用其结果进行进一步推理。此外，[agents](/oss/langchain/agents) 通过协调工具执行逻辑来实现迭代推理循环，从而发挥工具的潜力。
+
+## 创建工具
+
+LangChain 工具包装函数，使其可以被语言模型调用。它们包括函数的名称、描述、参数 schema，以及一个可选的 `return_direct` 选项，用于在工具输出满足请求时跳过模型的重新调用。
+
+### 函数工具
+
+创建工具最灵活的方式是使用 `tool` 装饰器。这会使用函数的文档字符串、名称和类型提示来填充工具的 schema。
+
+:::python
+<Tip>
+    装饰器方法适用于纯函数和 <Tooltip tip="可以暂停执行并在以后恢复的方法">协程</Tooltip>。
+</Tip>
+
+```python
+from langchain.tools import tool
+
+
+@tool
+def multiply(a: int, b: int) -> int:
+    """将两个整数相乘。"""
+    return a * b
+
+
+@tool
+async def multiply_async(a: int, b: int) -> int:
+    """将两个整数相乘。"""
+    return a * b
+
+
+# 工具现在可以使用其 schema 绑定到模型
+multiply.name  # "multiply"
+multiply.description  # "将两个整数相乘。"
+multiply.args  # 描述 a 和 b 的 JSON schema
+```
+:::
+:::js
+```typescript
+import * as z from "zod";
+import { tool } from "langchain";
+
+const multiply = tool(
+  (input) => {
+    return input.a * input.b;
+  },
+  {
+    name: "multiply",
+    description: "将两个整数相乘。",
+    schema: z.object({
+      a: z.number().describe("第一个整数"),
+      b: z.number().describe("第二个整数"),
+    }),
+  }
+);
+```
+:::
+
+### 工具参数
+
+`tool` 装饰器接受自定义参数来定义工具的行为。这些参数对于澄清工具的预期行为特别有用：
+
+<ParamField body="name" type="string">
+    覆盖函数名的工具名称。默认情况下，工具名称为其包装的函数名。
+</ParamField>
+<ParamField body="description" type="string">
+    为模型提供有关工具功能和使用说明的可读描述。
+</ParamField>
+<ParamField body="return_direct" type="bool">
+    如果为 `True`，在工具运行后，工具的输出直接返回给用户，绕过模型的重新调用。适用于仅返回信息且不需要进一步推理的工具（如数据库查找）。
+</ParamField>
+
+:::python
+<ParamField body="parse_docstring" type="bool">
+    如果为 `True`，将函数的文档字符串解析为工具的 `description`。参数文档字符串用于填充参数描述。
+</ParamField>
+
+```python
+@tool(parse_docstring=True)
+def multiply(a: int, b: int) -> int:
+    """将两个整数相乘。
+
+    参数：
+        a: 第一个整数。
+        b: 第二个整数。
+
+    返回：
+        乘积。
+    """
+    return a * b
+```
+:::
+
+### 结构化工具
+
+结构化工具允许您定义具有更复杂输入参数的函数，这些参数超出了单个值——例如，包含嵌套字段或多种类型的参数。
+
+:::python
+```python
+from langchain.tools import StructuredTool
+from pydantic import BaseModel, Field
+
+
+class SearchInput(BaseModel):
+    query: str = Field(description="要搜索的查询字符串。")
+    max_results: int = Field(default=5, description="要返回的最大结果数。")
+
+
+def search(query: str, max_results: int = 5) -> str:
+    """搜索知识库。"""
+    return f"Searching for {query} with max {max_results} results."
+
+
+tool = StructuredTool.from_function(
+    name="search",
+    description="搜索知识库。",
+    args_schema=SearchInput,
+    func=search,
+)
+```
+:::
+:::js
+
+在 TypeScript 中，所有工具都是使用参数 schema 定义的，因此已经支持结构化输入：
+
+```typescript
+import * as z from "zod";
+import { tool } from "langchain";
+
+const searchSchema = z.object({
+  query: z.string().describe("要搜索的查询字符串。"),
+  maxResults: z.number().default(5).describe("要返回的最大结果数。"),
+});
+
+const search = tool(
+  ({ query, maxResults }) => `Searching for ${query} with max ${maxResults} results.`,
+  {
+    name: "search",
+    description: "搜索知识库。",
+    schema: searchSchema,
+  }
+);
+```
+:::
+
+## 工具调用
+
+要使用工具，必须将它们绑定到模型，然后模型可以决定何时以及如何调用它们。
+
+:::python
+使用 @[`bind_tools`][BaseChatModel.bind_tools] 将工具 schema 附加到模型。
+
+```python
+from langchain.tools import tool
+
+@tool
+def get_weather(location: str) -> str:
+    """获取某个位置的天气。"""
+    return f"阳光明媚的 {location}。"
+
+
+model_with_tools = model.bind_tools([get_weather])
+response = model_with_tools.invoke("波士顿的天气怎么样？")
+# response.tool_calls 包含执行的工具调用
+```
+:::
+
+:::js
+使用 @[`bindTools`][BaseChatModel.bindTools] 将工具 schema 附加到模型。
+
+```typescript
+import * as z from "zod";
+import { tool } from "langchain";
+
+const getWeather = tool(
+  (input) => `阳光明媚的 ${input.location}。`,
+  {
+    name: "get_weather",
+    description: "获取某个位置的天气。",
+    schema: z.object({
+      location: z.string().describe("要获取天气的位置。"),
+    }),
+  }
+);
+
+const modelWithTools = model.bindTools([getWeather]);
+const response = await modelWithTools.invoke("波士顿的天气怎么样？");
+// response.tool_calls 包含执行的工具调用
+```
+:::
+
+### 使用工具
+
+要在模型做出工具调用后执行工具，必须调用工具的执行逻辑。
+
+:::python
+单个工具可以使用 `invoke` 调用，将 @[`ToolCall`] 或 @[`ToolMessage`] 作为输入。
+
+```python
+# 模型决定调用工具
+response = model_with_tools.invoke("波士顿的天气怎么样？")
+tool_call = response.tool_calls[0]
+
+# 使用调用中的参数执行工具
+tool_result = get_weather.invoke(tool_call)
+# tool_result 是包含 "阳光明媚的 Boston。" 的 ToolMessage
+```
+:::
+
+:::js
+```typescript
+// 模型决定调用工具
+const response = await modelWithTools.invoke("波士顿的天气怎么样？");
+const toolCall = response.tool_calls![0];
+
+// 使用调用中的参数执行工具
+const toolResult = await getWeather.invoke(toolCall);
+// toolResult 是包含 "阳光明媚的 Boston。" 的 ToolMessage
+```
+:::
+
+### 工具消息
+
+工具消息将工具执行的结果传回模型，作为对话历史的一部分。
+
+:::python
+```python
+from langchain.messages import ToolMessage
+
+# 当工具执行时，它会自动创建一个 ToolMessage
+tool_result = get_weather.invoke(tool_call)
+print(type(tool_result))  # ToolMessage
+print(tool_result.content)  # "阳光明媚的 Boston。"
+# 消息包含 tool_call_id 以供模型关联结果
+```
+:::
+
+:::js
+```typescript
+import { ToolMessage } from "langchain";
+
+// 当工具执行时，它会自动创建一个 ToolMessage
+const toolResult = await getWeather.invoke(toolCall);
+console.log(toolResult.constructor.name);  // ToolMessage
+console.log(toolResult.content);  // "阳光明媚的 Boston。"
+// 消息包含 tool_call_id 以供模型关联结果
+```
+:::
+
+## 工具配置
+
+工具可以配置各种选项来控制其行为和覆盖默认设置。
+
+### 上下文
+
+工具可以访问运行时 @[`Runtime`] 以读取每轮调用的数据，如用户 ID、凭据或功能标志。
+
+<Tip>
+    有关 Runtime Context 的更多详细信息，请参阅 [Runtime](/oss/langchain/runtime) 指南。
+</Tip>
+
+:::python
+```python
+from langchain.tools import tool
+
+@tool
+def get_user_data() -> str:
+    """获取当前用户的数据。"""
+    # 访问运行时上下文以检索用户信息
+    print(Runtime.get_context())
+    # {"user_id": "user_123", "role": "admin"}
+
+    # 对用户数据进行操作
+    user_id = Runtime.get_context().get("user_id")
+    return f"User {user_id} data retrieved."
+```
+:::
+
+### 错误处理
+
+当工具抛出异常时，你可以控制是否向模型报告错误，或者工具是否应该完全停止执行。
+
+<Tip>
+    有关工具错误处理的更多详细信息，请参阅 [Error handling](/oss/langchain/agents#tool-error-handling)。
+</Tip>
+
+## 与 Agent 一起使用
+
+**Agent 自动处理整个工具调用循环**：模型生成工具调用、执行工具并将结果反馈给模型。这消除了在独立使用工具时所需的手动编排，详见 [模型工具使用指南](/oss/langchain/models#tool-calling)。
+
+Agent 的 [工具处理能力](/oss/langchain/agents#tools) 超越了简单的工具绑定，提供了动态工具选择、重试逻辑和错误处理等高级特性。
