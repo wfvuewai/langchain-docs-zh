@@ -480,11 +480,9 @@ def normalize_context(state, runtime):
 - CopilotKit 拥有面向聊天的运行时契约
 - 你的自定义端点将它们在一个部署内粘合在一起
 
-:::python
 在使用 [CopilotKit](https://docs.copilotkit.ai) 运行时适配器时，将你的 CopilotKit `runtimeUrl` 指向 FastAPI（或其他）应用暴露的路由，而不只是原始图 REST 接口。
-:::
+在使用 [CopilotKit](https://docs.copilotkit.ai) 运行时适配器时，将你的 CopilotKit `runtimeUrl` 指向 FastAPI（或其他）应用暴露的路由，而不只是原始图 REST 接口。
 请遵循 CopilotKit 文档中关于 [LangGraphHttpAgent](https://docs.copilotkit.ai/langgraph) 或 Node **CopilotRuntime** 中的 `LangGraphAgent` 的说明；**Python** 图和中间件仍然定义工具行为和代理逻辑。
-:::
 
 ## 构建前端应用
 

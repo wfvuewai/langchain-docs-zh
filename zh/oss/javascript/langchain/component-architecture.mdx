@@ -1,11 +1,157 @@
 ---
 title: 组件架构
-description: 了解 LangChain 主要组件如何协同。
+description: 了解 LangChain 组件如何协作构建 AI 应用
 ---
 
-组件架构 是本学习模块的中文入口。
+LangChain 的能力来自其组件之间的协作方式。该页面展示关键组件之间关系的图示，帮助你快速理解如何组织复杂应用。
 
-## 学习入口
+## 核心组件生态
 
-- 阅读[英文原文](/oss/langchain/component-architecture)，获取完整教程和示例。
+下图展示了 LangChain 的核心组件如何连接，形成完整的 AI 应用：
 
+```mermaid
+graph TD
+    %% 输入处理
+    subgraph "📥 输入处理"
+        A[文本输入] --> B[文档加载器]
+        B --> C[文本分割器]
+        C --> D[文档]
+    end
+
+    %% 向量化与存储
+    subgraph "🔢 向量化与存储"
+        D --> E[嵌入模型]
+        E --> F[向量]
+        F --> G[(向量库)]
+    end
+
+    %% 检索
+    subgraph "🔍 检索"
+        H[用户查询] --> I[嵌入模型]
+        I --> J[查询向量]
+        J --> K[检索器]
+        K --> G
+        G --> L[相关上下文]
+    end
+
+    %% 生成
+    subgraph "🤖 生成"
+        M[聊天模型] --> N[工具]
+        N --> O[工具结果]
+        O --> M
+        L --> M
+        M --> P[AI 响应]
+    end
+
+    %% 编排
+    subgraph "🎯 编排"
+        Q[智能体] --> M
+        Q --> N
+        Q --> K
+        Q --> R[记忆]
+    end
+
+    classDef trigger fill:#F6FFDB,stroke:#6E8900,stroke-width:2px,color:#2E3900
+    classDef process fill:#E5F4FF,stroke:#006DDD,stroke-width:2px,color:#030710
+    classDef output fill:#EBD0F0,stroke:#885270,stroke-width:2px,color:#441E33
+    classDef neutral fill:#F2FAFF,stroke:#40668D,stroke-width:2px,color:#2F4B68
+
+    class A,H trigger
+    class B,C,E,I,K,M,N,Q process
+    class D,F,J,L,O,P,R neutral
+    class G output
+```
+
+### 组件如何连接
+
+每一层组件都在前一层基础上构建：
+
+1. **输入处理**：将原始数据转换为结构化文档
+2. **向量化与存储**：将文本转换为可检索的向量表示
+3. **检索**：基于用户问题查找相关信息
+4. **生成**：使用 AI 模型生成响应，可选地结合工具结果
+5. **编排**：通过智能体和记忆系统协调上述流程
+
+## 组件分类
+
+LangChain 将组件按以下类别组织：
+
+| 分类 | 用途 | 关键组件 | 使用场景 |
+|----------|---------|---------------|-----------|
+| **[模型](/oss/langchain/models)** | 推理与生成 AI 响应 | 聊天模型、LLM、嵌入模型 | 文本生成、推理、语义理解 |
+| **[工具](/oss/langchain/tools)** | 提供外部能力 | API、数据库等 | 网络搜索、数据访问、计算 |
+| **[智能体](/oss/langchain/agents)** | 进行编排和推理 | ReAct 智能体、工具调用智能体 | 非确定性工作流、决策 |
+| **[记忆](/oss/langchain/short-term-memory)** | 保持上下文 | 消息历史、状态 | 对话和有状态交互 |
+| **[检索器](/oss/integrations/retrievers)** | 提供信息访问 | 向量检索器、Web 检索器 | RAG、知识库搜索 |
+| **[文档处理](/oss/integrations/document_loaders)** | 数据引入 | 加载器、分割器、转换器 | PDF 处理、网页抓取 |
+| **[向量库](/oss/integrations/vectorstores)** | 语义检索 | Chroma、Pinecone、FAISS | 相似度检索、向量存储 |
+
+## 常见模式
+
+### RAG（检索增强生成）
+
+```mermaid
+graph LR
+    A[用户问题] --> B[检索器]
+    B --> C[相关文档]
+    C --> D[聊天模型]
+    A --> D
+    D --> E[基于上下文的回复]
+
+    classDef trigger fill:#F6FFDB,stroke:#6E8900,stroke-width:2px,color:#2E3900
+    classDef process fill:#E5F4FF,stroke:#006DDD,stroke-width:2px,color:#030710
+    classDef neutral fill:#F2FAFF,stroke:#40668D,stroke-width:2px,color:#2F4B68
+
+    class A trigger
+    class B,D process
+    class C,E neutral
+```
+
+### 使用工具的智能体
+
+```mermaid
+graph LR
+    A[用户请求] --> B[智能体]
+    B --> C{需要工具吗?}
+    C -->|是| D[调用工具]
+    D --> E[工具结果]
+    E --> B
+    C -->|否| F[最终答案]
+
+    classDef trigger fill:#F6FFDB,stroke:#6E8900,stroke-width:2px,color:#2E3900
+    classDef process fill:#E5F4FF,stroke:#006DDD,stroke-width:2px,color:#030710
+    classDef decision fill:#FDF3FF,stroke:#7E65AE,stroke-width:2px,color:#504B5F
+    classDef neutral fill:#F2FAFF,stroke:#40668D,stroke-width:2px,color:#2F4B68
+
+    class A trigger
+    class B,D process
+    class C decision
+    class E,F neutral
+```
+
+### 多智能体系统
+
+```mermaid
+graph LR
+    A[复杂任务] --> B[主管智能体]
+    B --> C[专门智能体 1]
+    B --> D[专门智能体 2]
+    C --> E[结果]
+    D --> E
+    E --> B
+    B --> F[协同响应]
+
+    classDef trigger fill:#F6FFDB,stroke:#6E8900,stroke-width:2px,color:#2E3900
+    classDef process fill:#E5F4FF,stroke:#006DDD,stroke-width:2px,color:#030710
+    classDef neutral fill:#F2FAFF,stroke:#40668D,stroke-width:2px,color:#2F4B68
+
+    class A trigger
+    class B,C,D process
+    class E,F neutral
+```
+
+## 延伸阅读
+
+- [创建智能体](/oss/langchain/agents)
+- [使用工具](/oss/langchain/tools)
+- [浏览集成项](/oss/integrations/providers/overview)
